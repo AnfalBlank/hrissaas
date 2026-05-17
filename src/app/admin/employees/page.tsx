@@ -1,0 +1,599 @@
+"use client";
+
+import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { TopBar } from "@/components/admin/TopBar";
+import { Icon3D } from "@/components/Icon3D";
+import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
+import { Modal } from "@/components/ui/Modal";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { api } from "@/lib/api";
+import { downloadFile } from "@/lib/download";
+import { Edit2, FileSpreadsheet, FileText, Filter, Search, Trash2, UserPlus } from "lucide-react";
+
+const ROLES = ["employee", "supervisor", "hr", "owner"] as const;
+const STATUSES = ["active", "leave", "inactive"] as const;
+
+export default function EmployeesPage() {
+  const qc = useQueryClient();
+  const [q, setQ] = useState("");
+  const [createOpen, setCreateOpen] = useState(false);
+  const [editId, setEditId] = useState<string | null>(null);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["admin-employees", q],
+    queryFn: () => api.adminEmployees(q || undefined),
+  });
+  const { data: branches } = useQuery({
+    queryKey: ["admin-branches"],
+    queryFn: () => api.adminBranches(),
+  });
+  const { data: shifts } = useQuery({
+    queryKey: ["admin-shifts"],
+    queryFn: () => api.adminShifts(),
+  });
+
+  const items = data?.items ?? [];
+
+  const remove = useMutation({
+    mutationFn: (id: string) => api.adminEmployeeDelete(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin-employees"] });
+      qc.invalidateQueries({ queryKey: ["admin-dashboard"] });
+      setDeleteId(null);
+    },
+  });
+
+  const [exporting, setExporting] = useState<"" | "pdf" | "xlsx">("");
+  async function handleExport(format: "pdf" | "xlsx") {
+    setExporting(format);
+    try {
+      await downloadFile(`/api/admin/employees/export?format=${format}`);
+    } catch (e: any) {
+      alert(e.message);
+    } finally {
+      setExporting("");
+    }
+  }
+
+  return (
+    <>
+      <TopBar
+        title="Manajemen Pegawai"
+        subtitle="Kelola data, shift, dan akses pegawai"
+        actions={
+          <>
+            <Button
+              variant="secondary"
+              onClick={() => handleExport("xlsx")}
+              disabled={!!exporting}
+            >
+              <FileSpreadsheet className="h-4 w-4" />
+              {exporting === "xlsx" ? "Mengunduh..." : "Excel"}
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => handleExport("pdf")}
+              disabled={!!exporting}
+            >
+              <FileText className="h-4 w-4" />
+              {exporting === "pdf" ? "Mengunduh..." : "PDF"}
+            </Button>
+            <Button onClick={() => setCreateOpen(true)}>
+              <UserPlus className="h-4 w-4" /> Tambah Pegawai
+            </Button>
+          </>
+        }
+      />
+      <div className="space-y-4 p-6">
+        <div className="flex flex-wrap items-center gap-2 rounded-3xl bg-white p-3 shadow-soft border border-ink-100">
+          <div className="relative flex-1 min-w-[220px]">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400" />
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Cari nama, ID, atau posisi..."
+              className="w-full rounded-2xl border border-ink-200 bg-ink-50/60 pl-9 pr-4 py-2.5 text-sm outline-none focus:border-brand-500 focus:bg-white"
+            />
+          </div>
+          {["Semua Divisi", "Semua Cabang", "Status"].map((f) => (
+            <button
+              key={f}
+              className="inline-flex items-center gap-2 rounded-2xl border border-ink-200 bg-white px-3 py-2 text-sm text-ink-600 hover:bg-ink-50"
+            >
+              <Filter className="h-3.5 w-3.5" /> {f}
+            </button>
+          ))}
+        </div>
+
+        <div className="overflow-hidden rounded-3xl bg-white shadow-card border border-ink-100">
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead className="bg-ink-50 text-left text-xs uppercase tracking-wider text-ink-500">
+                <tr>
+                  <th className="px-5 py-3">Pegawai</th>
+                  <th className="px-5 py-3">ID</th>
+                  <th className="px-5 py-3">Email</th>
+                  <th className="px-5 py-3">Divisi</th>
+                  <th className="px-5 py-3">Cabang</th>
+                  <th className="px-5 py-3">Role</th>
+                  <th className="px-5 py-3">Status</th>
+                  <th className="px-5 py-3">Aksi</th>
+                </tr>
+              </thead>
+              <tbody>
+                {isLoading && (
+                  <tr>
+                    <td
+                      colSpan={8}
+                      className="px-5 py-6 text-center text-ink-500"
+                    >
+                      Loading...
+                    </td>
+                  </tr>
+                )}
+                {!isLoading && items.length === 0 && (
+                  <tr>
+                    <td
+                      colSpan={8}
+                      className="px-5 py-6 text-center text-ink-500"
+                    >
+                      Tidak ada pegawai.
+                    </td>
+                  </tr>
+                )}
+                {items.map((e: any) => {
+                  const variant =
+                    e.status === "active"
+                      ? "success"
+                      : e.status === "leave"
+                        ? "warning"
+                        : "danger";
+                  return (
+                    <tr
+                      key={e.id}
+                      className="border-t border-ink-100 hover:bg-ink-50/60"
+                    >
+                      <td className="px-5 py-3">
+                        <div className="flex items-center gap-3">
+                          <div className="grid h-10 w-10 place-items-center rounded-xl bg-brand-100 font-bold text-brand-700">
+                            {e.fullName
+                              ?.split(" ")
+                              .map((s: string) => s[0])
+                              .slice(0, 2)
+                              .join("")}
+                          </div>
+                          <div>
+                            <p className="font-semibold">{e.fullName}</p>
+                            <p className="text-[11px] text-ink-500">
+                              {e.position}
+                            </p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-5 py-3 font-mono text-ink-600">
+                        {e.employeeCode}
+                      </td>
+                      <td className="px-5 py-3 text-ink-600">{e.userEmail}</td>
+                      <td className="px-5 py-3">{e.division}</td>
+                      <td className="px-5 py-3">{e.branchName ?? "-"}</td>
+                      <td className="px-5 py-3 capitalize">{e.userRole}</td>
+                      <td className="px-5 py-3">
+                        <Badge variant={variant as any}>
+                          {e.status === "active"
+                            ? "Aktif"
+                            : e.status === "leave"
+                              ? "Cuti"
+                              : "Tidak Aktif"}
+                        </Badge>
+                      </td>
+                      <td className="px-5 py-3">
+                        <div className="flex gap-1">
+                          <button
+                            onClick={() => setEditId(e.id)}
+                            className="rounded-lg p-2 hover:bg-ink-100"
+                            title="Edit"
+                          >
+                            <Edit2 className="h-4 w-4 text-ink-600" />
+                          </button>
+                          <button
+                            onClick={() => setDeleteId(e.id)}
+                            className="rounded-lg p-2 hover:bg-danger-500/10"
+                            title="Hapus"
+                          >
+                            <Trash2 className="h-4 w-4 text-danger-600" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <div className="flex items-center justify-between border-t border-ink-100 px-5 py-3 text-xs text-ink-500">
+            <span>Menampilkan {items.length} pegawai</span>
+          </div>
+        </div>
+      </div>
+
+      <EmployeeFormModal
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        branches={branches?.items ?? []}
+        shifts={shifts?.items ?? []}
+        mode="create"
+      />
+      <EmployeeFormModal
+        open={!!editId}
+        onClose={() => setEditId(null)}
+        branches={branches?.items ?? []}
+        shifts={shifts?.items ?? []}
+        mode="edit"
+        id={editId ?? undefined}
+      />
+      <ConfirmDialog
+        open={!!deleteId}
+        onClose={() => setDeleteId(null)}
+        onConfirm={() => deleteId && remove.mutate(deleteId)}
+        title="Hapus pegawai?"
+        description="Pegawai dan akun login akan dihapus permanen. Aksi ini tidak bisa dibatalkan."
+        loading={remove.isPending}
+      />
+    </>
+  );
+}
+
+function EmployeeFormModal({
+  open,
+  onClose,
+  branches,
+  shifts,
+  mode,
+  id,
+}: {
+  open: boolean;
+  onClose: () => void;
+  branches: any[];
+  shifts: any[];
+  mode: "create" | "edit";
+  id?: string;
+}) {
+  const qc = useQueryClient();
+  const [error, setError] = useState<string | null>(null);
+  const [form, setForm] = useState<any>({
+    email: "",
+    password: "demo1234",
+    fullName: "",
+    employeeCode: "",
+    role: "employee",
+    division: "",
+    position: "",
+    branchId: "",
+    shiftId: "",
+    baseSalary: 0,
+    phone: "",
+    status: "active",
+    ptkpStatus: "TK/0",
+    npwp: "",
+    maritalStatus: "single",
+    jkkClass: 1,
+    joinDate: new Date().toISOString().slice(0, 10),
+  });
+
+  const { data: detail } = useQuery({
+    queryKey: ["admin-employee-detail", id],
+    queryFn: () => api.adminEmployeeGet(id!),
+    enabled: mode === "edit" && !!id && open,
+  });
+
+  // Hydrate form on edit
+  if (mode === "edit" && detail && form.id !== detail.employee.id) {
+    setForm({
+      ...form,
+      ...detail.employee,
+      role: detail.user?.role,
+      id: detail.employee.id,
+    });
+  }
+
+  const create = useMutation({
+    mutationFn: () =>
+      api.adminEmployeeCreate({
+        ...form,
+        baseSalary: Number(form.baseSalary) || 0,
+        jkkClass: Number(form.jkkClass) || 1,
+        branchId: form.branchId || undefined,
+        shiftId: form.shiftId || undefined,
+        npwp: form.npwp || undefined,
+      }),
+    onSuccess: handleSuccess,
+    onError: (e: any) => setError(e.message),
+  });
+  const update = useMutation({
+    mutationFn: () =>
+      api.adminEmployeeUpdate(id!, {
+        fullName: form.fullName,
+        position: form.position,
+        division: form.division,
+        phone: form.phone,
+        branchId: form.branchId || null,
+        shiftId: form.shiftId || null,
+        baseSalary: Number(form.baseSalary) || 0,
+        status: form.status,
+        role: form.role,
+        ptkpStatus: form.ptkpStatus,
+        npwp: form.npwp || undefined,
+        maritalStatus: form.maritalStatus,
+        jkkClass: Number(form.jkkClass) || 1,
+        joinDate: form.joinDate || undefined,
+      }),
+    onSuccess: handleSuccess,
+    onError: (e: any) => setError(e.message),
+  });
+
+  function handleSuccess() {
+    qc.invalidateQueries({ queryKey: ["admin-employees"] });
+    qc.invalidateQueries({ queryKey: ["admin-dashboard"] });
+    onClose();
+    setError(null);
+  }
+
+  const submitting = create.isPending || update.isPending;
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={mode === "create" ? "Tambah Pegawai" : "Edit Pegawai"}
+      description="Lengkapi data pegawai"
+      size="lg"
+    >
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          (mode === "create" ? create : update).mutate();
+        }}
+        className="space-y-4 p-5"
+      >
+        {error && (
+          <p className="rounded-xl bg-danger-500/10 p-3 text-xs text-danger-600">
+            {error}
+          </p>
+        )}
+
+        <div className="grid gap-3 md:grid-cols-2">
+          <Field label="Nama Lengkap">
+            <input
+              required
+              className="input"
+              value={form.fullName}
+              onChange={(e) => setForm({ ...form, fullName: e.target.value })}
+            />
+          </Field>
+          <Field label="Kode Pegawai">
+            <input
+              required
+              className="input"
+              value={form.employeeCode}
+              disabled={mode === "edit"}
+              onChange={(e) =>
+                setForm({ ...form, employeeCode: e.target.value })
+              }
+            />
+          </Field>
+          {mode === "create" && (
+            <>
+              <Field label="Email">
+                <input
+                  required
+                  type="email"
+                  className="input"
+                  value={form.email}
+                  onChange={(e) => setForm({ ...form, email: e.target.value })}
+                />
+              </Field>
+              <Field label="Password Awal">
+                <input
+                  required
+                  className="input"
+                  value={form.password}
+                  onChange={(e) =>
+                    setForm({ ...form, password: e.target.value })
+                  }
+                />
+              </Field>
+            </>
+          )}
+          <Field label="Posisi">
+            <input
+              className="input"
+              value={form.position ?? ""}
+              onChange={(e) => setForm({ ...form, position: e.target.value })}
+            />
+          </Field>
+          <Field label="Divisi">
+            <input
+              className="input"
+              value={form.division ?? ""}
+              onChange={(e) => setForm({ ...form, division: e.target.value })}
+            />
+          </Field>
+          <Field label="Telepon (untuk WhatsApp)">
+            <input
+              className="input"
+              placeholder="08xxx atau 628xxx"
+              value={form.phone ?? ""}
+              onChange={(e) => setForm({ ...form, phone: e.target.value })}
+            />
+          </Field>
+          <Field label="Role">
+            <select
+              className="input"
+              value={form.role}
+              onChange={(e) => setForm({ ...form, role: e.target.value })}
+            >
+              {ROLES.map((r) => (
+                <option key={r} value={r}>
+                  {r}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Cabang">
+            <select
+              className="input"
+              value={form.branchId ?? ""}
+              onChange={(e) => setForm({ ...form, branchId: e.target.value })}
+            >
+              <option value="">— pilih cabang —</option>
+              {branches.map((b: any) => (
+                <option key={b.id} value={b.id}>
+                  {b.name}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Shift">
+            <select
+              className="input"
+              value={form.shiftId ?? ""}
+              onChange={(e) => setForm({ ...form, shiftId: e.target.value })}
+            >
+              <option value="">— pilih shift —</option>
+              {shifts.map((s: any) => (
+                <option key={s.id} value={s.id}>
+                  {s.name} ({s.startTime}-{s.endTime})
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Gaji Pokok (Rp)">
+            <input
+              type="number"
+              className="input"
+              value={form.baseSalary ?? 0}
+              onChange={(e) =>
+                setForm({ ...form, baseSalary: e.target.value })
+              }
+            />
+          </Field>
+          <Field label="Tanggal Bergabung">
+            <input
+              type="date"
+              className="input"
+              value={form.joinDate ?? ""}
+              onChange={(e) => setForm({ ...form, joinDate: e.target.value })}
+            />
+          </Field>
+          <Field label="Status PTKP (Pajak)">
+            <select
+              className="input"
+              value={form.ptkpStatus ?? "TK/0"}
+              onChange={(e) =>
+                setForm({ ...form, ptkpStatus: e.target.value })
+              }
+            >
+              <option value="TK/0">TK/0 (Tidak Kawin, 0 tanggungan)</option>
+              <option value="TK/1">TK/1 (Tidak Kawin, 1)</option>
+              <option value="TK/2">TK/2 (Tidak Kawin, 2)</option>
+              <option value="TK/3">TK/3 (Tidak Kawin, 3)</option>
+              <option value="K/0">K/0 (Kawin, 0)</option>
+              <option value="K/1">K/1 (Kawin, 1)</option>
+              <option value="K/2">K/2 (Kawin, 2)</option>
+              <option value="K/3">K/3 (Kawin, 3)</option>
+            </select>
+          </Field>
+          <Field label="NPWP (16 digit)">
+            <input
+              className="input"
+              placeholder="Kosongkan jika belum punya (PPh 21 +20%)"
+              maxLength={20}
+              value={form.npwp ?? ""}
+              onChange={(e) => setForm({ ...form, npwp: e.target.value })}
+            />
+          </Field>
+          <Field label="Status Pernikahan">
+            <select
+              className="input"
+              value={form.maritalStatus ?? "single"}
+              onChange={(e) =>
+                setForm({ ...form, maritalStatus: e.target.value })
+              }
+            >
+              <option value="single">Lajang</option>
+              <option value="married">Menikah</option>
+              <option value="widowed">Janda/Duda</option>
+              <option value="divorced">Cerai</option>
+            </select>
+          </Field>
+          <Field label="JKK Risk Class (BPJS Ketenagakerjaan)">
+            <select
+              className="input"
+              value={form.jkkClass ?? 1}
+              onChange={(e) =>
+                setForm({ ...form, jkkClass: Number(e.target.value) })
+              }
+            >
+              <option value="1">1 - Sangat Rendah (0.24%)</option>
+              <option value="2">2 - Rendah (0.54%)</option>
+              <option value="3">3 - Sedang (0.89%)</option>
+              <option value="4">4 - Tinggi (1.27%)</option>
+              <option value="5">5 - Sangat Tinggi (1.74%)</option>
+            </select>
+          </Field>
+          {mode === "edit" && (
+            <Field label="Status">
+              <select
+                className="input"
+                value={form.status ?? "active"}
+                onChange={(e) => setForm({ ...form, status: e.target.value })}
+              >
+                {STATUSES.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          )}
+        </div>
+
+        <div className="flex justify-end gap-2 pt-2">
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={onClose}
+            disabled={submitting}
+          >
+            Batal
+          </Button>
+          <Button type="submit" disabled={submitting}>
+            {submitting
+              ? "Menyimpan..."
+              : mode === "create"
+                ? "Buat Pegawai"
+                : "Simpan Perubahan"}
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <label className="block">
+      <span className="label">{label}</span>
+      {children}
+    </label>
+  );
+}

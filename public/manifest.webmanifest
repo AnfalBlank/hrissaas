@@ -1,0 +1,24 @@
+{
+  "name": "Manggala Attendance System",
+  "short_name": "MAS",
+  "description": "HRIS Attendance PWA Platform with face recognition, GPS validation, and realtime monitoring.",
+  "start_url": "/app",
+  "display": "standalone",
+  "background_color": "#f7f7fb",
+  "theme_color": "#3a5cff",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
