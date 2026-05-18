@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Icon3D } from "@/components/Icon3D";
+import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import {
@@ -46,9 +47,7 @@ function Header() {
     <header className="sticky top-0 z-40 backdrop-blur-xl bg-white/70 border-b border-ink-100">
       <div className="container mx-auto flex h-16 items-center justify-between px-5 max-w-7xl">
         <Link href="/" className="flex items-center gap-2">
-          <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-brand-400 to-brand-700 grid place-items-center text-white font-extrabold">
-            M
-          </div>
+          <Logo size={36} />
           <span className="font-display text-lg font-extrabold tracking-tight">
             Manggala<span className="text-brand-600">.</span>
           </span>
@@ -705,9 +704,7 @@ function Footer() {
         <div className="grid gap-8 md:grid-cols-4">
           <div>
             <div className="flex items-center gap-2">
-              <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-brand-400 to-brand-700 grid place-items-center text-white font-extrabold">
-                M
-              </div>
+              <Logo size={36} />
               <span className="font-display text-lg font-extrabold">
                 Manggala
               </span>

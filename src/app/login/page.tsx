@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 import { Icon3D } from "@/components/Icon3D";
+import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/Button";
 import { api } from "@/lib/api";
 import { Eye, EyeOff, ArrowRight, AlertCircle } from "lucide-react";
@@ -66,9 +67,7 @@ function LoginInner() {
         <div className="absolute inset-0 bg-grid-light bg-[size:48px_48px] opacity-20" />
         <div className="relative z-10 flex h-full flex-col p-12 text-white">
           <Link href="/" className="flex items-center gap-2">
-            <div className="h-10 w-10 rounded-xl bg-white/15 grid place-items-center font-extrabold backdrop-blur">
-              M
-            </div>
+            <Logo size={40} className="ring-2 ring-white/20" />
             <span className="font-display text-xl font-extrabold">
               Manggala
             </span>
@@ -108,9 +107,7 @@ function LoginInner() {
       <div className="flex items-center justify-center p-6 md:p-12 bg-hero-gradient">
         <div className="w-full max-w-sm">
           <Link href="/" className="lg:hidden mb-6 inline-flex items-center gap-2">
-            <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-brand-400 to-brand-700 grid place-items-center text-white font-extrabold">
-              M
-            </div>
+            <Logo size={36} />
             <span className="font-display text-lg font-extrabold">Manggala</span>
           </Link>
           <h1 className="font-display text-3xl font-extrabold">

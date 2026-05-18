@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Icon3D, type Icon3DName } from "@/components/Icon3D";
+import { Logo } from "@/components/Logo";
 import { cn } from "@/lib/utils";
 
 const NAV: {
@@ -55,9 +56,7 @@ export function Sidebar() {
     <aside className="hidden w-72 shrink-0 lg:block">
       <div className="sticky top-0 flex h-screen flex-col border-r border-ink-100 bg-white">
         <div className="flex h-16 items-center gap-2 border-b border-ink-100 px-5">
-          <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-brand-400 to-brand-700 grid place-items-center text-white font-extrabold">
-            M
-          </div>
+          <Logo size={36} />
           <div>
             <p className="font-display text-sm font-extrabold leading-tight">
               Manggala
