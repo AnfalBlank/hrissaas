@@ -104,8 +104,8 @@ function LoginInner() {
         </div>
       </div>
 
-      <div className="flex items-center justify-center p-6 md:p-12 bg-hero-gradient">
-        <div className="w-full max-w-sm">
+      <div className="flex items-center justify-center p-6 md:p-12 lg:p-16 bg-hero-gradient">
+        <div className="w-full max-w-md mx-auto">
           <Link href="/" className="lg:hidden mb-6 inline-flex items-center gap-2">
             <Logo size={36} />
             <span className="font-display text-lg font-extrabold">Manggala</span>
