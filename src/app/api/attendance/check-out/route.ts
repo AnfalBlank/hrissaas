@@ -7,7 +7,7 @@ import { and, eq } from "drizzle-orm";
 import { db, schema } from "@/server/db/client";
 import { requireSession } from "@/server/auth/session";
 import { ok, fail, handleError } from "@/server/api/respond";
-import { haversine, todayLocalDate } from "@/server/lib/geo";
+import { haversine, todayLocalDate, minutesSinceTarget } from "@/server/lib/geo";
 import { broadcastFeed } from "@/server/notifications/dispatch";
 
 const Body = z.object({
@@ -68,10 +68,7 @@ export async function POST(req: NextRequest) {
         .from(schema.shifts)
         .where(eq(schema.shifts.id, employee.shiftId));
       if (shift) {
-        const [hh, mm] = shift.endTime.split(":").map(Number);
-        const target = new Date();
-        target.setHours(hh, mm, 0, 0);
-        const diff = Math.floor((Date.now() - target.getTime()) / 60000);
+        const diff = minutesSinceTarget(shift.endTime);
         if (diff > 30) overtimeMinutes = diff;
       }
     }

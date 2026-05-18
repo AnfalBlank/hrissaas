@@ -8,7 +8,7 @@ import { and, eq } from "drizzle-orm";
 import { db, schema } from "@/server/db/client";
 import { requireSession } from "@/server/auth/session";
 import { ok, fail, handleError } from "@/server/api/respond";
-import { haversine, todayLocalDate } from "@/server/lib/geo";
+import { haversine, todayLocalDate, minutesSinceTarget } from "@/server/lib/geo";
 import { broadcastFeed, notify } from "@/server/notifications/dispatch";
 import { audit } from "@/server/auth/audit";
 
@@ -83,10 +83,7 @@ export async function POST(req: NextRequest) {
         .from(schema.shifts)
         .where(eq(schema.shifts.id, employee.shiftId));
       if (shift) {
-        const [hh, mm] = shift.startTime.split(":").map(Number);
-        const target = new Date();
-        target.setHours(hh, mm, 0, 0);
-        const diffMin = Math.floor((Date.now() - target.getTime()) / 60000);
+        const diffMin = minutesSinceTarget(shift.startTime);
         if (diffMin > (shift.graceMinutes ?? 5)) {
           lateMinutes = diffMin;
           status = "late";
