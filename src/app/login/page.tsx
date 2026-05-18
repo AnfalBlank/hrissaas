@@ -14,7 +14,7 @@ const PRESETS = {
   admin: { email: "admin@manggala.id", password: "demo1234" },
 };
 
-const ADMIN_ROLES = ["super_admin", "owner", "hr", "supervisor"];
+const ADMIN_ROLES = ["super_admin", "owner", "hr"];
 
 export default function LoginPage() {
   return (
