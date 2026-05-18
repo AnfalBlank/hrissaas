@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { TopBar } from "@/components/admin/TopBar";
@@ -11,6 +12,18 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { QrGenerator } from "@/components/admin/QrGenerator";
 import { api } from "@/lib/api";
 import { Edit2, Plus, Trash2 } from "lucide-react";
+
+const LiveMap = dynamic(
+  () => import("@/components/admin/LiveMap").then((m) => m.LiveMap),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="grid h-full place-items-center bg-gradient-to-br from-brand-50 to-cyan-50">
+        <div className="text-sm text-ink-500">Memuat peta...</div>
+      </div>
+    ),
+  }
+);
 
 export default function BranchesPage() {
   const qc = useQueryClient();
@@ -47,43 +60,26 @@ export default function BranchesPage() {
       />
       <div className="space-y-4 p-6">
         <div className="grid gap-4 lg:grid-cols-3">
-          <div className="lg:col-span-2 relative overflow-hidden rounded-3xl bg-gradient-to-br from-brand-50 to-cyan-50 p-6 shadow-card border border-ink-100 min-h-[420px]">
-            <div className="absolute inset-0 bg-grid-light bg-[size:32px_32px] opacity-30" />
-            <div className="relative">
-              <div className="flex items-center gap-3">
-                <Icon3D name="globe" size={56} />
-                <div>
-                  <p className="font-display font-bold">Peta Cabang</p>
-                  <p className="text-xs text-ink-500">
-                    Visualisasi lokasi & geofence area
-                  </p>
-                </div>
-              </div>
-            </div>
-            {branches.slice(0, 4).map((b: any, i: number) => {
-              const positions = [
-                { x: "30%", y: "55%" },
-                { x: "32%", y: "62%" },
-                { x: "55%", y: "68%" },
-                { x: "20%", y: "30%" },
-              ];
-              const p = positions[i] ?? positions[0];
-              return (
-                <div
-                  key={b.id}
-                  className="absolute"
-                  style={{ left: p.x, top: p.y }}
-                >
-                  <div className="relative">
-                    <div className="absolute inset-0 -m-6 rounded-full bg-brand-500/15 animate-pulseSoft" />
-                    <Icon3D name="pin" size={48} />
-                  </div>
-                </div>
-              );
-            })}
-            <div className="absolute bottom-4 right-4 flex gap-2">
-              <Badge variant="brand">{branches.length} Cabang</Badge>
-              <Badge variant="success">Geofence Aktif</Badge>
+          <div className="lg:col-span-2 relative overflow-hidden rounded-3xl shadow-card border border-ink-100 min-h-[420px]">
+            <LiveMap
+              branches={branches.map((b: any) => ({
+                id: b.id,
+                name: b.name,
+                city: b.city ?? undefined,
+                latitude: b.latitude,
+                longitude: b.longitude,
+                radiusMeters: b.radiusMeters ?? 100,
+                employees: b.employeeCount,
+              }))}
+              employees={[]}
+            />
+            <div className="pointer-events-none absolute right-4 top-4 z-[1000] flex gap-2">
+              <Badge variant="brand" className="pointer-events-auto">
+                {branches.length} Cabang
+              </Badge>
+              <Badge variant="success" className="pointer-events-auto">
+                Geofence Aktif
+              </Badge>
             </div>
           </div>
 

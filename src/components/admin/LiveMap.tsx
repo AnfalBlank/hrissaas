@@ -1,10 +1,16 @@
 "use client";
 
-import { MapContainer, TileLayer, Marker, Popup, Circle } from "react-leaflet";
+import { Fragment } from "react";
+import {
+  MapContainer,
+  TileLayer,
+  Marker,
+  Popup,
+  Circle,
+} from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
-// Fix default Leaflet icon path issue with Webpack
 const branchIcon = L.divIcon({
   className: "",
   iconSize: [40, 40],
@@ -31,11 +37,24 @@ const employeeIcon = (initials: string, late: boolean) =>
         width:36px;height:36px;border-radius:9999px;
         background:${late ? "#f59e0b" : "#22c55e"};
         color:white;display:grid;place-items:center;
-        font-weight:700;font-size:11px;font-family:Inter;
+        font-weight:700;font-size:11px;font-family:Inter,sans-serif;
         box-shadow:0 4px 12px rgba(0,0,0,0.25);border:2px solid white;
       ">${initials}</div>
     `,
   });
+
+const pinIcon = L.divIcon({
+  className: "",
+  iconSize: [32, 32],
+  iconAnchor: [16, 32],
+  popupAnchor: [0, -28],
+  html: `
+    <svg viewBox="0 0 24 24" fill="#ef4444" stroke="white" stroke-width="2" style="width:32px;height:32px;filter:drop-shadow(0 3px 4px rgba(0,0,0,0.3));">
+      <path d="M12 2C8 2 5 5 5 9c0 5.5 7 13 7 13s7-7.5 7-13c0-4-3-7-7-7z"/>
+      <circle cx="12" cy="9" r="2.5" fill="white"/>
+    </svg>
+  `,
+});
 
 export type MapBranch = {
   id: string;
@@ -56,6 +75,14 @@ export type MapEmployee = {
   lng: number;
 };
 
+export type MapMarker = {
+  id: string;
+  lat: number;
+  lng: number;
+  title: string;
+  subtitle?: string;
+};
+
 export function LiveMap({
   branches,
   employees,
@@ -65,24 +92,29 @@ export function LiveMap({
   employees: MapEmployee[];
   center?: [number, number];
 }) {
-  const fallbackCenter: [number, number] = center ??
+  const fallbackCenter: [number, number] =
+    center ??
     (branches[0]
       ? [branches[0].latitude, branches[0].longitude]
       : [-2.5489, 118.0149]);
 
+  const zoom = branches.length > 1 ? 5 : 14;
+
   return (
     <MapContainer
       center={fallbackCenter}
-      zoom={branches.length > 1 ? 5 : 14}
+      zoom={zoom}
       scrollWheelZoom
-      style={{ height: "100%", width: "100%", borderRadius: 24 }}
+      style={{ height: "100%", width: "100%" }}
+      className="z-0"
     >
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        maxZoom={19}
       />
       {branches.map((b) => (
-        <div key={b.id}>
+        <Fragment key={b.id}>
           <Circle
             center={[b.latitude, b.longitude]}
             radius={b.radiusMeters ?? 100}
@@ -102,7 +134,7 @@ export function LiveMap({
               {b.employees ?? 0} pegawai · radius {b.radiusMeters ?? 100}m
             </Popup>
           </Marker>
-        </div>
+        </Fragment>
       ))}
       {employees.map((e) => {
         const initials = e.name
@@ -126,6 +158,66 @@ export function LiveMap({
           </Marker>
         );
       })}
+    </MapContainer>
+  );
+}
+
+/**
+ * Compact map for showing a single point (mis. lokasi check-in pegawai).
+ */
+export function PointMap({
+  lat,
+  lng,
+  branchLat,
+  branchLng,
+  branchRadius,
+  branchName,
+  pointTitle,
+}: {
+  lat: number;
+  lng: number;
+  branchLat?: number;
+  branchLng?: number;
+  branchRadius?: number;
+  branchName?: string;
+  pointTitle?: string;
+}) {
+  return (
+    <MapContainer
+      center={[lat, lng]}
+      zoom={17}
+      scrollWheelZoom={false}
+      style={{ height: "100%", width: "100%" }}
+      className="z-0"
+    >
+      <TileLayer
+        attribution='&copy; OpenStreetMap'
+        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+      />
+      {branchLat != null && branchLng != null && (
+        <>
+          <Circle
+            center={[branchLat, branchLng]}
+            radius={branchRadius ?? 100}
+            pathOptions={{
+              color: "#3a5cff",
+              fillColor: "#3a5cff",
+              fillOpacity: 0.12,
+              weight: 2,
+            }}
+          />
+          <Marker position={[branchLat, branchLng]} icon={branchIcon}>
+            <Popup>
+              <strong>{branchName ?? "Cabang"}</strong>
+              <br />
+              radius {branchRadius ?? 100}m
+            </Popup>
+          </Marker>
+        </>
+      )}
+      <Marker position={[lat, lng]} icon={pinIcon}>
+        <Popup>{pointTitle ?? "Lokasi check-in"}</Popup>
+      </Marker>
     </MapContainer>
   );
 }

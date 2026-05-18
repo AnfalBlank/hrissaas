@@ -11,11 +11,13 @@ import { Icon3D, type Icon3DName } from "@/components/Icon3D";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
+import { AttendanceDetail } from "@/components/admin/AttendanceDetail";
 import { api } from "@/lib/api";
 import { useRealtime } from "@/lib/realtime";
 import { downloadFile } from "@/lib/download";
 import {
   Edit2,
+  Eye,
   FileSpreadsheet,
   FileText,
   Filter,
@@ -30,6 +32,7 @@ export default function AttendanceMgmt() {
   const [q, setQ] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [editing, setEditing] = useState<any | null>(null);
+  const [viewing, setViewing] = useState<any | null>(null);
   const [exporting, setExporting] = useState<"" | "pdf" | "xlsx">("");
 
   const { data } = useQuery({
@@ -252,13 +255,22 @@ export default function AttendanceMgmt() {
                         <Badge variant={variant as any}>{label}</Badge>
                       </td>
                       <td className="px-5 py-3">
-                        <button
-                          onClick={() => setEditing(r)}
-                          className="rounded-lg p-1.5 hover:bg-ink-100"
-                          title="Koreksi manual"
-                        >
-                          <Edit2 className="h-4 w-4 text-ink-600" />
-                        </button>
+                        <div className="flex gap-1">
+                          <button
+                            onClick={() => setViewing(r)}
+                            className="rounded-lg p-1.5 hover:bg-brand-50"
+                            title="Lihat foto + lokasi"
+                          >
+                            <Eye className="h-4 w-4 text-brand-600" />
+                          </button>
+                          <button
+                            onClick={() => setEditing(r)}
+                            className="rounded-lg p-1.5 hover:bg-ink-100"
+                            title="Koreksi manual"
+                          >
+                            <Edit2 className="h-4 w-4 text-ink-600" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -272,6 +284,11 @@ export default function AttendanceMgmt() {
       <CorrectionModal
         attendance={editing}
         onClose={() => setEditing(null)}
+      />
+      <AttendanceDetail
+        open={!!viewing}
+        onClose={() => setViewing(null)}
+        attendance={viewing}
       />
     </>
   );
