@@ -48,11 +48,17 @@ function LoginInner() {
     setLoading(true);
     setError(null);
     try {
+      // Logout dulu untuk clear session lama (jika ada)
+      await fetch("/api/auth/logout", { method: "POST", credentials: "include" }).catch(() => {});
       const data = await api.login(email, password);
       const userRole = data.user?.role;
       const target =
         next ||
         (ADMIN_ROLES.includes(userRole) ? "/admin" : "/app");
+      // Force clear React Query cache agar data user lama tidak nyangkut
+      if (typeof window !== "undefined") {
+        window.__MAS_FRESH_LOGIN__ = true;
+      }
       router.push(target);
       router.refresh();
     } catch (err: any) {
