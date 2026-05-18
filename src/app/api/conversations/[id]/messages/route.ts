@@ -9,7 +9,6 @@ import { requireSession } from "@/server/auth/session";
 import { ok, fail, handleError } from "@/server/api/respond";
 import { emitToCompany } from "@/server/realtime/emitter";
 import { notify } from "@/server/notifications/dispatch";
-import { notify } from "@/server/notifications/dispatch";
 
 async function ensureParticipant(conversationId: string, userId: string) {
   const [p] = await db
