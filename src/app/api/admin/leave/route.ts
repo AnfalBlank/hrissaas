@@ -102,6 +102,7 @@ export async function PATCH(req: NextRequest) {
         body: `${row.fromDate} → ${row.toDate} (${row.days} hari)${body.note ? `\nCatatan: ${body.note}` : ""}`,
         category: "leave",
         icon: body.status === "approved" ? "check" : "cross",
+        link: "/app/leave",
         whatsapp: true,
       }).catch(() => {});
     }

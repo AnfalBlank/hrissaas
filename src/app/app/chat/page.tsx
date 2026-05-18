@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   useMutation,
   useQuery,
@@ -25,7 +26,18 @@ import {
 type View = "list" | "chat";
 
 export default function ChatPage() {
+  return (
+    <Suspense fallback={null}>
+      <ChatInner />
+    </Suspense>
+  );
+}
+
+function ChatInner() {
   const qc = useQueryClient();
+  const searchParams = useSearchParams();
+  const convFromUrl = searchParams.get("conv");
+
   const [view, setView] = useState<View>("list");
   const [activeConv, setActiveConv] = useState<{
     id: string;
@@ -51,6 +63,21 @@ export default function ChatPage() {
   });
 
   const conversations = convData?.items ?? [];
+
+  // Auto-open conversation from URL query param (e.g. from notif deep link)
+  useEffect(() => {
+    if (!convFromUrl || conversations.length === 0) return;
+    const c = conversations.find((x: any) => x.id === convFromUrl);
+    if (c) {
+      const other = c.otherParticipants?.[0];
+      setActiveConv({
+        id: c.id,
+        name: other?.name ?? "User",
+        avatarUrl: other?.avatarUrl,
+      });
+      setView("chat");
+    }
+  }, [convFromUrl, conversations]);
 
   return (
     <div className="px-4 pt-4">

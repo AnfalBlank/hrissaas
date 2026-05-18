@@ -239,7 +239,8 @@ export const notifications = sqliteTable("notifications", {
   title: text("title").notNull(),
   body: text("body"),
   icon: text("icon").default("bell"),
-  category: text("category").default("system"), // system|attendance|leave|payroll|cms
+  category: text("category").default("system"), // system|attendance|leave|payroll|cms|chat
+  link: text("link"), // optional deep link e.g. /app/leave or /app/chat?id=xxx
   readAt: integer("read_at", { mode: "timestamp_ms" }),
   createdAt: ts("created_at"),
 });

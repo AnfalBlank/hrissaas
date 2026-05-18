@@ -12,8 +12,9 @@ export async function notify(opts: {
   companyId: string;
   title: string;
   body?: string;
-  category?: "system" | "attendance" | "leave" | "payroll" | "cms";
+  category?: "system" | "attendance" | "leave" | "payroll" | "cms" | "chat";
   icon?: string;
+  link?: string;
   whatsapp?: boolean;
 }) {
   const [row] = await db
@@ -25,6 +26,7 @@ export async function notify(opts: {
       body: opts.body,
       icon: opts.icon ?? "bell",
       category: opts.category ?? "system",
+      link: opts.link,
     })
     .returning();
 

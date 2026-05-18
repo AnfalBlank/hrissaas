@@ -152,6 +152,7 @@ export async function POST(req: NextRequest) {
         body: "Check-in via QR Code.",
         category: "attendance",
         icon: "warning",
+        link: "/app/history",
         whatsapp: true,
       }).catch(() => {});
     }

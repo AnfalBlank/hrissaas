@@ -314,6 +314,7 @@ export async function POST(req: NextRequest) {
           body: `Take Home Pay: Rp ${t.net.toLocaleString("id-ID")}.`,
           category: "payroll",
           icon: "payroll",
+          link: `/app/payroll?period=${period}`,
           whatsapp: true,
         }).catch(() => {})
       )

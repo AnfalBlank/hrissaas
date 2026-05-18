@@ -104,6 +104,7 @@ export async function PATCH(req: NextRequest) {
         body: `${row.date} · ${row.startTime}-${row.endTime} (${row.hours}j)${body.note ? `\nCatatan: ${body.note}` : ""}`,
         category: "attendance",
         icon: body.status === "approved" ? "check" : "cross",
+        link: "/app/overtime",
         whatsapp: true,
       }).catch(() => {});
     }

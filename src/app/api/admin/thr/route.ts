@@ -130,6 +130,7 @@ export async function POST(req: NextRequest) {
           )}${calc.prorata ? ` (pro-rata ${calc.monthsOfService} bulan)` : ""}.`,
           category: "payroll",
           icon: "party",
+          link: `/app/payroll?period=${body.period}`,
           whatsapp: true,
         }).catch(() => {});
       }

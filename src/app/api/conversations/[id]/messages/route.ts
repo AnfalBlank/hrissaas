@@ -9,6 +9,7 @@ import { requireSession } from "@/server/auth/session";
 import { ok, fail, handleError } from "@/server/api/respond";
 import { emitToCompany } from "@/server/realtime/emitter";
 import { notify } from "@/server/notifications/dispatch";
+import { notify } from "@/server/notifications/dispatch";
 
 async function ensureParticipant(conversationId: string, userId: string) {
   const [p] = await db
@@ -137,14 +138,14 @@ export async function POST(
 
     for (const p of otherParts) {
       if (p.userId === session.sub) continue;
-      // Only create notification if last message > 1 minute ago (avoid spam)
       notify({
         userId: p.userId,
         companyId: session.companyId,
         title: `Pesan baru dari ${senderName}`,
         body: lastText.slice(0, 200),
-        category: "system",
+        category: "chat",
         icon: "chat",
+        link: `/app/chat?conv=${params.id}`,
       }).catch(() => {});
     }
 

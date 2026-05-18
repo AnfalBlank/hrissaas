@@ -186,6 +186,7 @@ export async function POST(req: NextRequest) {
         body: "Mohon segera laporkan ke supervisor jika ada kendala.",
         category: "attendance",
         icon: "warning",
+        link: "/app/history",
         whatsapp: true,
       }).catch(() => {});
     }

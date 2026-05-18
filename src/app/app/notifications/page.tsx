@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   useMutation,
   useQuery,
@@ -11,6 +12,7 @@ import { Icon3D, type Icon3DName } from "@/components/Icon3D";
 import { Badge } from "@/components/ui/Badge";
 import { api } from "@/lib/api";
 import { useRealtime } from "@/lib/realtime";
+import { resolveNotifLink } from "@/lib/notif-route";
 import { CheckCheck } from "lucide-react";
 
 const ICON_MAP: Record<string, Icon3DName> = {
@@ -44,6 +46,7 @@ function timeAgo(date: any) {
 
 export default function NotificationsPage() {
   const qc = useQueryClient();
+  const router = useRouter();
   const [filter, setFilter] = useState<string>("all");
 
   const { data } = useQuery({
@@ -124,7 +127,10 @@ export default function NotificationsPage() {
           return (
             <li
               key={n.id}
-              onClick={() => unread && markOne.mutate(n.id)}
+              onClick={() => {
+                if (unread) markOne.mutate(n.id);
+                router.push(resolveNotifLink(n, false));
+              }}
               className={`flex gap-3 rounded-2xl p-3 shadow-soft border cursor-pointer transition ${
                 unread
                   ? "bg-brand-50/60 border-brand-100 active:scale-[0.99]"

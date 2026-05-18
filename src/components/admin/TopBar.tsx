@@ -9,6 +9,7 @@ import { Icon3D, type Icon3DName } from "@/components/Icon3D";
 import { ChatBell } from "@/components/admin/ChatBell";
 import { api } from "@/lib/api";
 import { useRealtime } from "@/lib/realtime";
+import { resolveNotifLink } from "@/lib/notif-route";
 
 const ICON_MAP: Record<string, Icon3DName> = {
   attendance: "face",
@@ -310,7 +311,11 @@ function NotifBell() {
               return (
                 <li
                   key={n.id}
-                  onClick={() => isUnread && markOne.mutate(n.id)}
+                  onClick={() => {
+                    if (isUnread) markOne.mutate(n.id);
+                    setOpen(false);
+                    router.push(resolveNotifLink(n, true));
+                  }}
                   className={`flex cursor-pointer gap-3 p-3 transition ${
                     isUnread ? "bg-brand-50/40 hover:bg-brand-50" : "hover:bg-ink-50"
                   }`}
