@@ -260,7 +260,7 @@ export const announcements = sqliteTable("announcements", {
   createdAt: ts("created_at"),
 });
 
-/* ---------------- chats ---------------- */
+/* ---------------- chats (legacy: employee → HR) ---------------- */
 export const chats = sqliteTable("chats", {
   id: id(),
   companyId: text("company_id")
@@ -274,6 +274,71 @@ export const chats = sqliteTable("chats", {
   attachmentUrl: text("attachment_url"),
   createdAt: ts("created_at"),
 });
+
+/* ---------------- chat_conversations (1-1 atau group antar user) ---------------- */
+export const chatConversations = sqliteTable(
+  "chat_conversations",
+  {
+    id: id(),
+    companyId: text("company_id")
+      .notNull()
+      .references(() => companies.id, { onDelete: "cascade" }),
+    type: text("type").default("direct"), // direct | group
+    title: text("title"), // optional, untuk group
+    lastMessageAt: integer("last_message_at", { mode: "timestamp_ms" }),
+    lastMessageText: text("last_message_text"),
+    createdAt: ts("created_at"),
+  },
+  (t) => ({
+    companyIdx: index("conv_company_idx").on(t.companyId),
+  })
+);
+
+/* ---------------- chat_participants ---------------- */
+export const chatParticipants = sqliteTable(
+  "chat_participants",
+  {
+    id: id(),
+    conversationId: text("conversation_id")
+      .notNull()
+      .references(() => chatConversations.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    lastReadAt: integer("last_read_at", { mode: "timestamp_ms" }),
+    createdAt: ts("created_at"),
+  },
+  (t) => ({
+    convUserIdx: uniqueIndex("part_conv_user_idx").on(
+      t.conversationId,
+      t.userId
+    ),
+    userIdx: index("part_user_idx").on(t.userId),
+  })
+);
+
+/* ---------------- chat_messages ---------------- */
+export const chatMessages = sqliteTable(
+  "chat_messages",
+  {
+    id: id(),
+    conversationId: text("conversation_id")
+      .notNull()
+      .references(() => chatConversations.id, { onDelete: "cascade" }),
+    fromUserId: text("from_user_id")
+      .notNull()
+      .references(() => users.id),
+    text: text("text"),
+    attachmentUrl: text("attachment_url"),
+    attachmentName: text("attachment_name"),
+    attachmentMime: text("attachment_mime"),
+    attachmentSize: integer("attachment_size"),
+    createdAt: ts("created_at"),
+  },
+  (t) => ({
+    convIdx: index("msg_conv_idx").on(t.conversationId),
+  })
+);
 
 /* ---------------- payroll_settings (per company) ---------------- */
 export const payrollSettings = sqliteTable("payroll_settings", {
@@ -403,3 +468,6 @@ export type OvertimeRequest = typeof overtimeRequests.$inferSelect;
 export type PayrollSettings = typeof payrollSettings.$inferSelect;
 export type Holiday = typeof holidays.$inferSelect;
 export type PayrollComponent = typeof payrollComponents.$inferSelect;
+export type ChatConversation = typeof chatConversations.$inferSelect;
+export type ChatMessage = typeof chatMessages.$inferSelect;
+export type ChatParticipant = typeof chatParticipants.$inferSelect;

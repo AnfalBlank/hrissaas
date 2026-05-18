@@ -283,7 +283,32 @@ export const api = {
       body: JSON.stringify({ period, payDate }),
     }),
 
-  // Chat
+  // Chat (1-1 antar pegawai)
+  contacts: () => request<{ items: any[] }>("/api/contacts"),
+  conversations: () => request<{ items: any[] }>("/api/conversations"),
+  startConversation: (toUserId: string) =>
+    request<{ conversationId: string; existed: boolean }>(
+      "/api/conversations",
+      { method: "POST", body: JSON.stringify({ toUserId }) }
+    ),
+  conversationMessages: (id: string) =>
+    request<{ messages: any[] }>(`/api/conversations/${id}/messages`),
+  sendMessage: (
+    id: string,
+    data: {
+      text?: string;
+      attachmentUrl?: string;
+      attachmentName?: string;
+      attachmentMime?: string;
+      attachmentSize?: number;
+    }
+  ) =>
+    request(`/api/conversations/${id}/messages`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  // Legacy chat (HR support)
   chatList: () => request<{ items: any[] }>("/api/chat"),
   chatSend: (text: string, attachmentUrl?: string) =>
     request("/api/chat", {
