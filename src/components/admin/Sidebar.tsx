@@ -26,6 +26,7 @@ const NAV: {
       { href: "/admin/timesheet", label: "Timesheet", icon: "stopwatch" },
       { href: "/admin/overtime", label: "Lembur", icon: "fire" },
       { href: "/admin/leave", label: "Cuti", icon: "beach" },
+      { href: "/admin/leave-quotas", label: "Kuota Cuti", icon: "calendar" },
       { href: "/admin/shifts", label: "Shift", icon: "clock" },
       { href: "/admin/holidays", label: "Hari Libur", icon: "party" },
     ],

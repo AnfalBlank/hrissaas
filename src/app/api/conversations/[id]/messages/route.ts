@@ -8,6 +8,7 @@ import { db, schema } from "@/server/db/client";
 import { requireSession } from "@/server/auth/session";
 import { ok, fail, handleError } from "@/server/api/respond";
 import { emitToCompany } from "@/server/realtime/emitter";
+import { notify } from "@/server/notifications/dispatch";
 
 async function ensureParticipant(conversationId: string, userId: string) {
   const [p] = await db
@@ -120,6 +121,32 @@ export async function POST(
       conversationId: params.id,
       message: msg,
     });
+
+    // Also push DB notification to other participants (so they see badge
+    // even if Socket.IO is offline / Vercel deployment).
+    const otherParts = await db
+      .select()
+      .from(schema.chatParticipants)
+      .where(eq(schema.chatParticipants.conversationId, params.id));
+
+    const [sender] = await db
+      .select()
+      .from(schema.employees)
+      .where(eq(schema.employees.userId, session.sub));
+    const senderName = sender?.fullName ?? "Seseorang";
+
+    for (const p of otherParts) {
+      if (p.userId === session.sub) continue;
+      // Only create notification if last message > 1 minute ago (avoid spam)
+      notify({
+        userId: p.userId,
+        companyId: session.companyId,
+        title: `Pesan baru dari ${senderName}`,
+        body: lastText.slice(0, 200),
+        category: "system",
+        icon: "chat",
+      }).catch(() => {});
+    }
 
     return ok({ message: msg });
   } catch (e) {

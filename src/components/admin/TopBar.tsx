@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Bell, Search, X } from "lucide-react";
 import { Icon3D, type Icon3DName } from "@/components/Icon3D";
+import { ChatBell } from "@/components/admin/ChatBell";
 import { api } from "@/lib/api";
 import { useRealtime } from "@/lib/realtime";
 
@@ -47,6 +48,7 @@ export function TopBar({
       </div>
       <div className="flex flex-1 items-center justify-end gap-3">
         <GlobalSearch />
+        <ChatBell />
         <NotifBell />
         {actions}
       </div>

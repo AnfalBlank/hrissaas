@@ -181,6 +181,7 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify(data),
     }),
+  // Leave & quotas
   adminLeave: (status?: string) =>
     request<{ items: any[]; summary: any }>(
       `/api/admin/leave${status ? `?status=${status}` : ""}`
@@ -193,6 +194,35 @@ export const api = {
     request("/api/admin/leave", {
       method: "PATCH",
       body: JSON.stringify({ id, status, note }),
+    }),
+  adminLeaveQuotas: (year?: number) =>
+    request<{ year: number; items: any[] }>(
+      `/api/admin/leave-quotas${year ? `?year=${year}` : ""}`
+    ),
+  adminLeaveQuotaUpdate: (data: {
+    employeeId: string;
+    type: "annual" | "sick" | "permission" | "emergency";
+    total: number;
+    used?: number;
+    year?: number;
+  }) =>
+    request("/api/admin/leave-quotas", {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
+  adminLeaveQuotaBulk: (data: {
+    year: number;
+    defaults: {
+      annual: number;
+      sick: number;
+      permission: number;
+      emergency: number;
+    };
+    resetUsed?: boolean;
+  }) =>
+    request("/api/admin/leave-quotas", {
+      method: "POST",
+      body: JSON.stringify(data),
     }),
   adminPayroll: (period?: string) =>
     request<{ items: any[]; totals: any; period: string }>(
