@@ -9,12 +9,13 @@ import {
 } from "@tanstack/react-query";
 import { PageHeader } from "@/components/employee/PageHeader";
 import { Icon3D, type Icon3DName } from "@/components/Icon3D";
+import { IdCard } from "@/components/employee/IdCard";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { api } from "@/lib/api";
 import { ChevronRight, LogOut } from "lucide-react";
 
-type Action = "edit" | "password" | null;
+type Action = "edit" | "password" | "idcard" | null;
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -50,6 +51,12 @@ export default function ProfilePage() {
     {
       title: "Akun",
       items: [
+        {
+          icon: "card",
+          label: "ID Card Pegawai",
+          sub: "Lihat kartu identitas digital",
+          onClick: () => setAction("idcard"),
+        },
         {
           icon: "card",
           label: "Edit Profil",
@@ -228,6 +235,14 @@ export default function ProfilePage() {
       <ChangePasswordModal
         open={action === "password"}
         onClose={() => setAction(null)}
+      />
+      <IdCard
+        open={action === "idcard"}
+        onClose={() => setAction(null)}
+        user={user}
+        employee={employee}
+        branch={data?.branch}
+        company={{ name: "PT Manggala Sejahtera" }}
       />
     </div>
   );
