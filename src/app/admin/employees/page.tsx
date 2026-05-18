@@ -11,7 +11,6 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { api } from "@/lib/api";
 import { downloadFile } from "@/lib/download";
 import { Edit2, FileSpreadsheet, FileText, Filter, Search, Trash2, UserPlus } from "lucide-react";
-
 const ROLES = ["employee", "supervisor", "hr", "owner"] as const;
 const STATUSES = ["active", "leave", "inactive"] as const;
 
@@ -21,6 +20,9 @@ export default function EmployeesPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [divisionFilter, setDivisionFilter] = useState("");
+  const [branchFilter, setBranchFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
 
   const { data, isLoading } = useQuery({
     queryKey: ["admin-employees", q],
@@ -36,6 +38,18 @@ export default function EmployeesPage() {
   });
 
   const items = data?.items ?? [];
+  const allDivisions = Array.from(
+    new Set(items.map((e: any) => e.division).filter(Boolean))
+  ) as string[];
+  const allBranches = Array.from(
+    new Set(items.map((e: any) => e.branchName).filter(Boolean))
+  ) as string[];
+  const filtered = items.filter((e: any) => {
+    if (divisionFilter && e.division !== divisionFilter) return false;
+    if (branchFilter && e.branchName !== branchFilter) return false;
+    if (statusFilter && e.status !== statusFilter) return false;
+    return true;
+  });
 
   const remove = useMutation({
     mutationFn: (id: string) => api.adminEmployeeDelete(id),
@@ -98,14 +112,40 @@ export default function EmployeesPage() {
               className="w-full rounded-2xl border border-ink-200 bg-ink-50/60 pl-9 pr-4 py-2.5 text-sm outline-none focus:border-brand-500 focus:bg-white"
             />
           </div>
-          {["Semua Divisi", "Semua Cabang", "Status"].map((f) => (
-            <button
-              key={f}
-              className="inline-flex items-center gap-2 rounded-2xl border border-ink-200 bg-white px-3 py-2 text-sm text-ink-600 hover:bg-ink-50"
-            >
-              <Filter className="h-3.5 w-3.5" /> {f}
-            </button>
-          ))}
+          <select
+            className="rounded-2xl border border-ink-200 bg-white px-3 py-2 text-sm text-ink-600"
+            value={divisionFilter}
+            onChange={(e) => setDivisionFilter(e.target.value)}
+          >
+            <option value="">Semua Divisi</option>
+            {allDivisions.map((d) => (
+              <option key={d} value={d}>
+                {d}
+              </option>
+            ))}
+          </select>
+          <select
+            className="rounded-2xl border border-ink-200 bg-white px-3 py-2 text-sm text-ink-600"
+            value={branchFilter}
+            onChange={(e) => setBranchFilter(e.target.value)}
+          >
+            <option value="">Semua Cabang</option>
+            {allBranches.map((b) => (
+              <option key={b} value={b}>
+                {b}
+              </option>
+            ))}
+          </select>
+          <select
+            className="rounded-2xl border border-ink-200 bg-white px-3 py-2 text-sm text-ink-600"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+          >
+            <option value="">Semua Status</option>
+            <option value="active">Aktif</option>
+            <option value="leave">Cuti</option>
+            <option value="inactive">Tidak Aktif</option>
+          </select>
         </div>
 
         <div className="overflow-hidden rounded-3xl bg-white shadow-card border border-ink-100">
@@ -134,17 +174,17 @@ export default function EmployeesPage() {
                     </td>
                   </tr>
                 )}
-                {!isLoading && items.length === 0 && (
+                {!isLoading && filtered.length === 0 && (
                   <tr>
                     <td
                       colSpan={8}
                       className="px-5 py-6 text-center text-ink-500"
                     >
-                      Tidak ada pegawai.
+                      Tidak ada pegawai sesuai filter.
                     </td>
                   </tr>
                 )}
-                {items.map((e: any) => {
+                {filtered.map((e: any) => {
                   const variant =
                     e.status === "active"
                       ? "success"
@@ -214,7 +254,9 @@ export default function EmployeesPage() {
             </table>
           </div>
           <div className="flex items-center justify-between border-t border-ink-100 px-5 py-3 text-xs text-ink-500">
-            <span>Menampilkan {items.length} pegawai</span>
+            <span>
+              Menampilkan {filtered.length} dari {items.length} pegawai
+            </span>
           </div>
         </div>
       </div>

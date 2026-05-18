@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { TopBar } from "@/components/admin/TopBar";
 import { Icon3D, type Icon3DName } from "@/components/Icon3D";
@@ -17,12 +18,14 @@ export default function SettingsPage() {
     title: string;
     desc: string;
     icon: Icon3DName;
+    href: string;
     fields: { l: string; v: string; ok?: boolean }[];
   }[] = [
     {
       title: "Profil Perusahaan",
       desc: "Identitas & branding tenant",
       icon: "buildings",
+      href: "/admin/payroll-settings",
       fields: [
         { l: "Nama", v: "PT Manggala Sejahtera" },
         { l: "Domain", v: "manggala.app" },
@@ -30,9 +33,41 @@ export default function SettingsPage() {
       ],
     },
     {
-      title: "Integrasi",
+      title: "Pengaturan Payroll",
+      desc: "Rate, BPJS, lembur, THR",
+      icon: "payroll",
+      href: "/admin/payroll-settings",
+      fields: [
+        { l: "PPh 21", v: "Aktif (UU HPP 2021)" },
+        { l: "BPJS lengkap", v: "Kesehatan + JHT + JP + JKK + JKM" },
+        { l: "Lembur", v: "Permenaker 102/2004" },
+      ],
+    },
+    {
+      title: "Hari Libur",
+      desc: "Kalender libur & weekend",
+      icon: "party",
+      href: "/admin/holidays",
+      fields: [
+        { l: "Auto-detect", v: "Hari Minggu" },
+        { l: "Manual", v: "Libur nasional & cuti bersama" },
+      ],
+    },
+    {
+      title: "Cabang & GPS",
+      desc: "Lokasi kantor + radius geofence",
+      icon: "buildings",
+      href: "/admin/branches",
+      fields: [
+        { l: "Validasi GPS", v: "Haversine distance" },
+        { l: "QR Dynamic", v: "Token JWT 60 detik" },
+      ],
+    },
+    {
+      title: "Integrasi Eksternal",
       desc: "Hubungkan layanan eksternal",
       icon: "link",
+      href: "/admin/notifications",
       fields: [
         {
           l: "WhatsApp Cloud API",
@@ -40,42 +75,55 @@ export default function SettingsPage() {
           ok: status?.whatsapp,
         },
         {
-          l: "Cloudflare R2 Storage",
+          l: "Cloudflare R2",
           v: status?.r2 ? "Connected" : "Fallback (base64)",
           ok: status?.r2,
         },
         {
           l: "Socket.IO Realtime",
-          v: status?.socketIO ? "Connected" : "Offline",
+          v: status?.socketIO ? "Connected" : "Polling mode",
           ok: status?.socketIO,
         },
       ],
     },
     {
-      title: "Billing & SaaS",
-      desc: "Paket berlangganan & invoice",
-      icon: "wallet",
+      title: "Notifikasi",
+      desc: "Template & channel notifikasi",
+      icon: "bell",
+      href: "/admin/notifications",
       fields: [
-        { l: "Paket aktif", v: "Professional" },
-        { l: "Pegawai", v: "264 / 500" },
-        { l: "Tagihan berikutnya", v: "20 Mei 2026" },
+        { l: "Channels", v: "Push + WhatsApp + Email" },
+        { l: "Realtime", v: "Socket.IO + DB notifications" },
       ],
     },
     {
-      title: "Backup & Storage",
-      desc: "Cloud storage & retensi data",
-      icon: "package",
+      title: "Keamanan",
+      desc: "Audit log & kontrol akses",
+      icon: "shield",
+      href: "/admin/security",
       fields: [
-        { l: "Database", v: "Turso libSQL" },
-        { l: "Backup", v: "Otomatis (Turso replicas)" },
-        { l: "Retensi audit log", v: "365 hari" },
+        { l: "JWT Auth", v: "HS256 + httpOnly cookie" },
+        { l: "Audit log", v: "Login, attendance, koreksi manual" },
+      ],
+    },
+    {
+      title: "CMS Konten",
+      desc: "Banner, artikel, pengumuman",
+      icon: "newspaper",
+      href: "/admin/cms",
+      fields: [
+        { l: "Banner", v: "Tampil di home pegawai" },
+        { l: "Artikel", v: "Multi-kategori" },
       ],
     },
   ];
 
   return (
     <>
-      <TopBar title="Pengaturan" subtitle="Konfigurasi sistem & tenant" />
+      <TopBar
+        title="Pengaturan"
+        subtitle="Konfigurasi sistem & tenant"
+      />
       <div className="grid gap-4 p-6 lg:grid-cols-2">
         {SECTIONS.map((s) => (
           <div
@@ -107,9 +155,11 @@ export default function SettingsPage() {
                 </li>
               ))}
             </ul>
-            <Button variant="secondary" block className="mt-4">
-              Atur
-            </Button>
+            <Link href={s.href} className="block mt-4">
+              <Button variant="secondary" block>
+                Buka Pengaturan
+              </Button>
+            </Link>
           </div>
         ))}
 
