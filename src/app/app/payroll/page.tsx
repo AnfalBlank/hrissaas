@@ -101,7 +101,7 @@ export default function PayrollPage() {
   ].filter((s) => Math.abs(s.value) > 0);
 
   return (
-    <div className="px-4 pt-4">
+    <div className="px-4 pt-4 pb-32">
       <PageHeader title="Slip Gaji" subtitle={`Periode ${c.period}`} />
 
       {/* Hero card */}
