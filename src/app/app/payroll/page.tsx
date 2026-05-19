@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { PageHeader } from "@/components/employee/PageHeader";
 import { Icon3D } from "@/components/Icon3D";
@@ -92,21 +92,13 @@ export default function PayrollPage() {
 
   // Donut chart segments
   const chartTotal = totalEarnings || 1;
-  const segments = useMemo(() => {
-    const items = [
-      { label: "Gaji Pokok", value: c.baseSalary || 0, color: "#3A5CFF" },
-      { label: "Tunjangan", value: c.allowance || 0, color: "#22C55E" },
-      { label: "Lembur", value: c.overtimePay || 0, color: "#F59E0B" },
-      { label: "Bonus + THR", value: (c.bonus || 0) + (c.thr || 0), color: "#A855F7" },
-      {
-        label: "Potongan",
-        value: -(totalDed || 0),
-        color: "#EF4444",
-      },
-    ].filter((s) => Math.abs(s.value) > 0);
-    return items;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [c.baseSalary, c.allowance, c.overtimePay, c.bonus, c.thr, totalDed]);
+  const segments = [
+    { label: "Gaji Pokok", value: c.baseSalary || 0, color: "#3A5CFF" },
+    { label: "Tunjangan", value: c.allowance || 0, color: "#22C55E" },
+    { label: "Lembur", value: c.overtimePay || 0, color: "#F59E0B" },
+    { label: "Bonus + THR", value: (c.bonus || 0) + (c.thr || 0), color: "#A855F7" },
+    { label: "Potongan", value: -(totalDed || 0), color: "#EF4444" },
+  ].filter((s) => Math.abs(s.value) > 0);
 
   return (
     <div className="px-4 pt-4">
