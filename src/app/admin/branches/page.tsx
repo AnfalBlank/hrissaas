@@ -25,6 +25,18 @@ const LiveMap = dynamic(
   }
 );
 
+const MapPicker = dynamic(
+  () => import("@/components/admin/MapPicker").then((m) => m.MapPicker),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-[300px] w-full rounded-2xl bg-ink-100 grid place-items-center">
+        <span className="text-sm text-ink-500">Memuat peta...</span>
+      </div>
+    ),
+  }
+);
+
 export default function BranchesPage() {
   const qc = useQueryClient();
   const { data } = useQuery({
@@ -266,8 +278,8 @@ function BranchModal({
       open={open}
       onClose={onClose}
       title={existing ? "Edit Cabang" : "Tambah Cabang"}
-      description="Atur lokasi & radius geofence"
-      size="md"
+      description="Klik peta untuk set lokasi kantor"
+      size="lg"
     >
       <form
         onSubmit={(e) => {
@@ -303,37 +315,12 @@ function BranchModal({
             onChange={(e) => setForm({ ...form, address: e.target.value })}
           />
         </Field>
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Latitude">
-            <input
-              required
-              type="number"
-              step="any"
-              className="input"
-              value={form.latitude}
-              onChange={(e) =>
-                setForm({ ...form, latitude: Number(e.target.value) })
-              }
-            />
-          </Field>
-          <Field label="Longitude">
-            <input
-              required
-              type="number"
-              step="any"
-              className="input"
-              value={form.longitude}
-              onChange={(e) =>
-                setForm({ ...form, longitude: Number(e.target.value) })
-              }
-            />
-          </Field>
-        </div>
-        <Field label="Radius (meter)">
+        <Field label="Radius Geofence (meter)">
           <input
             required
             type="number"
             min="10"
+            max="10000"
             className="input"
             value={form.radiusMeters}
             onChange={(e) =>
@@ -341,6 +328,27 @@ function BranchModal({
             }
           />
         </Field>
+        <div>
+          <span className="label">Lokasi (klik peta atau cari alamat)</span>
+          <MapPicker
+            latitude={form.latitude}
+            longitude={form.longitude}
+            radius={form.radiusMeters}
+            onLocationChange={(lat, lng) =>
+              setForm({ ...form, latitude: lat, longitude: lng })
+            }
+          />
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            <div className="rounded-xl bg-ink-50 px-3 py-2 text-xs">
+              <span className="text-ink-400">Lat:</span>{" "}
+              <span className="font-mono font-semibold">{form.latitude}</span>
+            </div>
+            <div className="rounded-xl bg-ink-50 px-3 py-2 text-xs">
+              <span className="text-ink-400">Lng:</span>{" "}
+              <span className="font-mono font-semibold">{form.longitude}</span>
+            </div>
+          </div>
+        </div>
         <div className="flex justify-end gap-2 pt-2">
           <Button
             type="button"
