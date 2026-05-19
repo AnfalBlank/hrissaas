@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest } from "next/server";
 import { z } from "zod";
-import { eq } from "drizzle-orm";
+import { and, eq, gte, lte } from "drizzle-orm";
 import { db, schema } from "@/server/db/client";
 import { requireRole } from "@/server/auth/session";
 import { audit } from "@/server/auth/audit";
@@ -80,7 +80,6 @@ export async function GET(
       attEnd = `${y}-${String(m).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
     }
 
-    const { and, gte, lte } = await import("drizzle-orm");
     const attendances = await db
       .select()
       .from(schema.attendances)
