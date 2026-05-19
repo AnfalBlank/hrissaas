@@ -130,7 +130,16 @@ export default function AdminDashboard() {
                 <BarChart data={data?.chart ?? []} barGap={6}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="day" tickLine={false} axisLine={false} />
-                  <YAxis tickLine={false} axisLine={false} />
+                  <YAxis
+                    tickLine={false}
+                    axisLine={false}
+                    label={{
+                      value: "Pegawai",
+                      angle: -90,
+                      position: "insideLeft",
+                      style: { fontSize: 11, fill: "#8A93AD" },
+                    }}
+                  />
                   <Tooltip
                     contentStyle={{
                       borderRadius: 16,
@@ -214,7 +223,17 @@ export default function AdminDashboard() {
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="m" tickLine={false} axisLine={false} />
-                  <YAxis tickLine={false} axisLine={false} domain={[80, 100]} />
+                  <YAxis
+                    tickLine={false}
+                    axisLine={false}
+                    domain={[80, 100]}
+                    label={{
+                      value: "% Hadir",
+                      angle: -90,
+                      position: "insideLeft",
+                      style: { fontSize: 11, fill: "#8A93AD" },
+                    }}
+                  />
                   <Tooltip />
                   <Area
                     type="monotone"

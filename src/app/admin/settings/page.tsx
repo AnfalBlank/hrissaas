@@ -194,6 +194,37 @@ export default function SettingsPage() {
         ))}
       </div>
 
+      {/* Plan info + upgrade CTA */}
+      <div className="mx-6 mb-6 rounded-3xl bg-gradient-to-br from-brand-700 via-brand-600 to-accent-600 p-6 text-white shadow-card">
+        <div className="flex items-center gap-4">
+          <Icon3D name="rocket" size={64} />
+          <div className="flex-1">
+            <p className="font-display text-xl font-bold">
+              Plan: {company?.plan?.charAt(0).toUpperCase()}{company?.plan?.slice(1) ?? "Professional"}
+            </p>
+            <p className="text-sm text-white/80">
+              {company?.plan === "enterprise"
+                ? "Anda sudah di plan tertinggi. Nikmati semua fitur tanpa batas."
+                : "Upgrade ke Enterprise untuk multi-tenant SaaS, custom domain, AI Analytics, dan priority support 24/7."}
+            </p>
+          </div>
+          {company?.plan !== "enterprise" && (
+            <Badge className="bg-white text-brand-700">Hemat 20%</Badge>
+          )}
+        </div>
+        {company?.plan !== "enterprise" && (
+          <a
+            href="https://wa.me/6281234567890?text=Halo%2C%20saya%20tertarik%20upgrade%20ke%20Enterprise%20plan%20HRIS%20Manggala."
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-4 inline-flex items-center gap-2 rounded-2xl bg-white px-5 py-2.5 font-semibold text-brand-700 shadow hover:bg-white/90 transition"
+          >
+            <Icon3D name="chat" size={20} />
+            Hubungi Sales via WhatsApp
+          </a>
+        )}
+      </div>
+
       {editOpen && company && (
         <CompanyEditModal
           company={company}

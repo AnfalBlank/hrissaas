@@ -8,15 +8,23 @@ import { Badge } from "@/components/ui/Badge";
 import { api } from "@/lib/api";
 import { ChevronLeft, ChevronRight, Search } from "lucide-react";
 
-const TOGGLES: { l: string; d: string; v: boolean; i: Icon3DName }[] = [
-  { l: "Validasi GPS Wajib", d: "Geofence per branch (haversine)", v: true, i: "satellite" },
-  { l: "Liveness Detection", d: "AI face recognition + anti-spoof", v: true, i: "face" },
-  { l: "Rate Limiting", d: "Cegah brute force login", v: true, i: "bolt" },
-  { l: "Audit Log", d: "Catat semua aktivitas penting", v: true, i: "scroll" },
-  { l: "JWT httpOnly Cookie", d: "Session cookie aman", v: true, i: "lock" },
-  { l: "Multi-tenant Isolation", d: "Query filter by companyId", v: true, i: "shield" },
-  { l: "Password bcrypt", d: "Hashing 10 rounds", v: true, i: "key" },
-  { l: "Anti Mock GPS", d: "Cek akurasi & pola koordinat", v: false, i: "warning" },
+const SECURITY_FEATURES: {
+  l: string;
+  d: string;
+  active: boolean;
+  i: Icon3DName;
+  type: "built-in" | "configurable";
+}[] = [
+  { l: "Validasi GPS Wajib", d: "Geofence per branch (haversine)", active: true, i: "satellite", type: "built-in" },
+  { l: "Liveness Detection", d: "AI face recognition + anti-spoof", active: true, i: "face", type: "built-in" },
+  { l: "Rate Limiting", d: "5 percobaan / 15 menit, lockout 30 menit", active: true, i: "bolt", type: "built-in" },
+  { l: "Audit Log", d: "40+ action types tercatat otomatis", active: true, i: "scroll", type: "built-in" },
+  { l: "JWT httpOnly Cookie", d: "Session cookie aman + auto-refresh 6 jam", active: true, i: "lock", type: "built-in" },
+  { l: "Multi-tenant Isolation", d: "Query filter by companyId di semua endpoint", active: true, i: "shield", type: "built-in" },
+  { l: "Password bcrypt", d: "Hashing 10 rounds (bcryptjs)", active: true, i: "key", type: "built-in" },
+  { l: "Anti Mock GPS", d: "Cek akurasi koordinat + reject jika di luar radius", active: true, i: "warning", type: "built-in" },
+  { l: "Redis Rate Limit", d: "Persistent lockout via Upstash (set UPSTASH_REDIS_REST_URL)", active: false, i: "bolt", type: "configurable" },
+  { l: "WhatsApp Notifications", d: "Alert via WhatsApp Cloud API (set WHATSAPP_TOKEN)", active: false, i: "chat", type: "configurable" },
 ];
 
 const ACTION_ICON: Record<string, { icon: Icon3DName; variant: "success" | "danger" | "warning" | "default" | "brand" }> =
@@ -156,7 +164,7 @@ export default function SecurityPage() {
               </div>
             </div>
             <ul className="mt-4 space-y-2">
-              {TOGGLES.map((t) => (
+              {SECURITY_FEATURES.map((t) => (
                 <li
                   key={t.l}
                   className="flex items-center gap-3 rounded-2xl bg-ink-50 p-3"
@@ -166,17 +174,16 @@ export default function SecurityPage() {
                     <p className="text-sm font-semibold">{t.l}</p>
                     <p className="text-[11px] text-ink-500">{t.d}</p>
                   </div>
-                  <span
-                    className={`relative h-6 w-11 rounded-full transition ${
-                      t.v ? "bg-success-500" : "bg-ink-300"
-                    }`}
-                  >
-                    <span
-                      className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${
-                        t.v ? "left-5" : "left-0.5"
-                      }`}
-                    />
-                  </span>
+                  <div className="flex flex-col items-end gap-1">
+                    <Badge
+                      variant={t.active ? "success" : "warning"}
+                    >
+                      {t.active ? "Aktif" : "Off"}
+                    </Badge>
+                    <span className="text-[9px] text-ink-400">
+                      {t.type === "built-in" ? "Built-in" : "Env config"}
+                    </span>
+                  </div>
                 </li>
               ))}
             </ul>
