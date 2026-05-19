@@ -28,6 +28,12 @@ function LoginInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const next = searchParams.get("next") || "";
+  const reason = searchParams.get("reason");
+
+  const REASON_MSG: Record<string, string> = {
+    expired: "Sesi Anda sudah berakhir. Silakan login kembali.",
+    idle: "Anda di-logout otomatis karena tidak ada aktivitas selama 30 menit.",
+  };
 
   const [showPwd, setShowPwd] = useState(false);
   const [role, setRole] = useState<"employee" | "admin">("employee");
@@ -139,6 +145,13 @@ function LoginInner() {
               </button>
             ))}
           </div>
+
+          {reason && REASON_MSG[reason] && (
+            <div className="mt-4 flex items-start gap-2 rounded-2xl bg-amber-500/10 px-3 py-2 text-sm text-amber-700">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+              {REASON_MSG[reason]}
+            </div>
+          )}
 
           {error && (
             <div className="mt-4 flex items-start gap-2 rounded-2xl bg-danger-500/10 px-3 py-2 text-sm text-danger-600">
