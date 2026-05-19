@@ -46,6 +46,9 @@ export default function PayrollSettingsPage() {
         taxMethod: form.taxMethod,
         companyNpwp: form.companyNpwp || "",
         companyTaxAddress: form.companyTaxAddress || "",
+        payrollCycle: form.payrollCycle,
+        cutoffDay: Number(form.cutoffDay ?? 0),
+        payDate: Number(form.payDate ?? 25),
       }),
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ["payroll-settings"] });
@@ -146,6 +149,68 @@ export default function PayrollSettingsPage() {
               <option value="6">6 hari (Senin-Sabtu)</option>
             </select>
             <Hint>Mempengaruhi rate lembur hari libur</Hint>
+          </Field>
+        </Section>
+
+        {/* Pola Gajian */}
+        <Section icon="calendar" title="Pola Gajian & Cut-off">
+          <div className="rounded-2xl bg-blue-50 p-3 mb-3 text-xs text-blue-800">
+            <strong>Pola Gajian</strong> menentukan kapan data absensi dipotong
+            (cut-off) dan kapan gaji ditransfer. Pilih sesuai kebijakan
+            perusahaan.
+          </div>
+          <Field label="Pola Gajian">
+            <select
+              className="input"
+              value={form.payrollCycle ?? "end_of_month"}
+              onChange={(e) =>
+                setForm({ ...form, payrollCycle: e.target.value })
+              }
+            >
+              <option value="end_of_month">
+                Akhir Bulan — Siklus Berjalan (absensi 1-akhir bulan, bayar di bulan yang sama)
+              </option>
+              <option value="start_of_next_month">
+                Awal Bulan Berikutnya — Siklus Bulan Sebelumnya (absensi 1-akhir bulan, bayar awal bulan depan)
+              </option>
+              <option value="custom_cutoff">
+                Custom Cut-off (absensi dari tgl X+1 bulan lalu s/d tgl X bulan ini)
+              </option>
+            </select>
+          </Field>
+          {(form.payrollCycle ?? "end_of_month") === "custom_cutoff" && (
+            <Field label="Tanggal Cut-off (1-28)">
+              <input
+                type="number"
+                min="1"
+                max="28"
+                className="input"
+                value={form.cutoffDay ?? 20}
+                onChange={(e) =>
+                  setForm({ ...form, cutoffDay: e.target.value })
+                }
+              />
+              <Hint>
+                Contoh: cut-off 20 → data absensi 21 bulan lalu s/d 20 bulan ini.
+              </Hint>
+            </Field>
+          )}
+          <Field label="Tanggal Gajian (Transfer)">
+            <input
+              type="number"
+              min="1"
+              max="31"
+              className="input"
+              value={form.payDate ?? 25}
+              onChange={(e) => setForm({ ...form, payDate: e.target.value })}
+            />
+            <Hint>
+              {(form.payrollCycle ?? "end_of_month") === "end_of_month"
+                ? "Gaji ditransfer tanggal ini di bulan yang sama."
+                : (form.payrollCycle ?? "end_of_month") === "start_of_next_month"
+                  ? "Gaji ditransfer tanggal ini di bulan berikutnya."
+                  : "Gaji ditransfer tanggal ini setelah cut-off."}
+            </Hint>
           </Field>
         </Section>
 

@@ -22,6 +22,154 @@ const Patch = z.object({
   attendanceDeduction: z.number().int().nonnegative().optional(),
 });
 
+/**
+ * GET /api/admin/payroll/[id]
+ * Verifikasi detail payroll — breakdown lengkap untuk review sebelum approve.
+ */
+export async function GET(
+  _req: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const session = await requireRole(["super_admin", "owner", "hr"]);
+    const [payroll] = await db
+      .select()
+      .from(schema.payrolls)
+      .where(eq(schema.payrolls.id, params.id));
+    if (!payroll || payroll.companyId !== session.companyId)
+      return fail(404, "Payroll tidak ditemukan");
+
+    const [employee] = await db
+      .select()
+      .from(schema.employees)
+      .where(eq(schema.employees.id, payroll.employeeId));
+
+    // Ambil komponen payroll yang digunakan untuk periode ini
+    const components = await db
+      .select()
+      .from(schema.payrollComponents)
+      .where(eq(schema.payrollComponents.employeeId, payroll.employeeId));
+    const activeComponents = components.filter((c) => {
+      if (c.startPeriod && c.startPeriod > payroll.period) return false;
+      if (c.endPeriod && c.endPeriod < payroll.period) return false;
+      if (!c.recurring && c.startPeriod && c.startPeriod !== payroll.period)
+        return false;
+      return true;
+    });
+
+    // Ambil data absensi bulan tersebut
+    const [settingsRow] = await db
+      .select()
+      .from(schema.payrollSettings)
+      .where(eq(schema.payrollSettings.companyId, session.companyId));
+
+    const cycle = (settingsRow?.payrollCycle as string) ?? "end_of_month";
+    const cutoffDay = settingsRow?.cutoffDay ?? 0;
+    const [y, m] = payroll.period.split("-").map(Number);
+
+    let attStart: string;
+    let attEnd: string;
+    if (cycle === "custom_cutoff" && cutoffDay > 0) {
+      const prevMonth = m === 1 ? 12 : m - 1;
+      const prevYear = m === 1 ? y - 1 : y;
+      attStart = `${prevYear}-${String(prevMonth).padStart(2, "0")}-${String(cutoffDay + 1).padStart(2, "0")}`;
+      attEnd = `${y}-${String(m).padStart(2, "0")}-${String(cutoffDay).padStart(2, "0")}`;
+    } else {
+      attStart = `${payroll.period}-01`;
+      const d = new Date(y, m, 0);
+      attEnd = `${y}-${String(m).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    }
+
+    const { and, gte, lte } = await import("drizzle-orm");
+    const attendances = await db
+      .select()
+      .from(schema.attendances)
+      .where(
+        and(
+          eq(schema.attendances.employeeId, payroll.employeeId),
+          gte(schema.attendances.date, attStart),
+          lte(schema.attendances.date, attEnd)
+        )
+      );
+
+    const attendanceSummary = {
+      totalDays: attendances.length,
+      present: attendances.filter((a) => a.status === "present").length,
+      late: attendances.filter((a) => a.status === "late").length,
+      totalLateMinutes: attendances.reduce(
+        (s, a) => s + (a.lateMinutes ?? 0),
+        0
+      ),
+      totalOvertimeMinutes: attendances.reduce(
+        (s, a) => s + (a.overtimeMinutes ?? 0),
+        0
+      ),
+      range: { from: attStart, to: attEnd },
+    };
+
+    // Breakdown
+    const breakdown = {
+      baseSalary: payroll.baseSalary,
+      allowance: payroll.allowance,
+      overtimePay: payroll.overtimePay,
+      overtimeHours: payroll.overtimeHours,
+      bonus: payroll.bonus,
+      thr: payroll.thr,
+      grossTotal:
+        (payroll.baseSalary || 0) +
+        (payroll.allowance || 0) +
+        (payroll.overtimePay || 0) +
+        (payroll.bonus || 0) +
+        (payroll.thr || 0),
+      bpjsKesehatan: payroll.bpjsKesehatan,
+      bpjsJht: payroll.bpjsJht,
+      bpjsJp: payroll.bpjsJp,
+      bpjsTotal: payroll.bpjsDeduction,
+      taxDeduction: payroll.taxDeduction,
+      attendanceDeduction: payroll.attendanceDeduction,
+      lateMinutes: payroll.lateMinutes,
+      totalDeduction:
+        (payroll.bpjsDeduction || 0) +
+        (payroll.taxDeduction || 0) +
+        (payroll.attendanceDeduction || 0),
+      netSalary: payroll.netSalary,
+      employerBpjs: payroll.employerBpjs,
+      ptkpStatus: payroll.ptkpStatus,
+    };
+
+    return ok({
+      payroll,
+      employee: employee
+        ? {
+            id: employee.id,
+            fullName: employee.fullName,
+            employeeCode: employee.employeeCode,
+            division: employee.division,
+            position: employee.position,
+            baseSalary: employee.baseSalary,
+            ptkpStatus: employee.ptkpStatus,
+            npwp: employee.npwp,
+            jkkClass: employee.jkkClass,
+            bankName: employee.bankName,
+            bankAccount: employee.bankAccount,
+            joinDate: employee.joinDate,
+          }
+        : null,
+      breakdown,
+      attendanceSummary,
+      activeComponents,
+      settings: {
+        cycle,
+        cutoffDay,
+        payDate: settingsRow?.payDate ?? 25,
+        taxMethod: settingsRow?.taxMethod ?? "TER",
+      },
+    });
+  } catch (e) {
+    return handleError(e);
+  }
+}
+
 export async function PATCH(
   req: NextRequest,
   { params }: { params: { id: string } }

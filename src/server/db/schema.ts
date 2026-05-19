@@ -419,6 +419,10 @@ export const payrollSettings = sqliteTable("payroll_settings", {
   workDaysPerWeek: integer("work_days_per_week").default(5),
   // Late deduction base
   lateDeductionBase: text("late_deduction_base").default("baseSalary"), // baseSalary|monthlyGross
+  // Pola gajian
+  payrollCycle: text("payroll_cycle").default("end_of_month"), // end_of_month|start_of_next_month|custom_cutoff
+  cutoffDay: integer("cutoff_day").default(0), // 0=full month (1-akhir), 1-28=custom cutoff day
+  payDate: integer("pay_date").default(25), // tanggal berapa gaji ditransfer (1-31)
   // Company tax info
   companyNpwp: text("company_npwp"),
   companyTaxAddress: text("company_tax_address"),

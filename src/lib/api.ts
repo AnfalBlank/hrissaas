@@ -288,6 +288,15 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify(data),
     }),
+  adminPayrollDetail: (id: string) =>
+    request<{
+      payroll: any;
+      employee: any;
+      breakdown: any;
+      attendanceSummary: any;
+      activeComponents: any[];
+      settings: any;
+    }>(`/api/admin/payroll/${id}`),
   // Tambah method baru ke SDK
   adminCompany: () =>
     request<{ company: any }>("/api/admin/company"),

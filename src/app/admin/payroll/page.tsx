@@ -13,6 +13,7 @@ import { downloadFile } from "@/lib/download";
 import { formatCurrency } from "@/lib/utils";
 import {
   CheckCircle,
+  Eye,
   FileSpreadsheet,
   FileText,
   History,
@@ -70,6 +71,7 @@ export default function PayrollAdmin() {
   const [exporting, setExporting] = useState<"" | "pdf" | "xlsx">("");
   const [paymentTarget, setPaymentTarget] = useState<any | null>(null);
   const [historyTarget, setHistoryTarget] = useState<any | null>(null);
+  const [detailTarget, setDetailTarget] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
   async function handleExport(format: "pdf" | "xlsx") {
@@ -236,6 +238,15 @@ export default function PayrollAdmin() {
                         <div className="flex items-center gap-1">
                           {r.status === "draft" && (
                             <button
+                              onClick={() => setDetailTarget(r.id)}
+                              className="rounded-lg p-1.5 text-ink-600 hover:bg-ink-100"
+                              title="Verifikasi detail"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </button>
+                          )}
+                          {r.status === "draft" && (
+                            <button
                               onClick={() =>
                                 update.mutate({
                                   id: r.id,
@@ -305,6 +316,12 @@ export default function PayrollAdmin() {
         <HistoryModal
           payroll={historyTarget}
           onClose={() => setHistoryTarget(null)}
+        />
+      )}
+      {detailTarget && (
+        <DetailModal
+          payrollId={detailTarget}
+          onClose={() => setDetailTarget(null)}
         />
       )}
       <ConfirmDialog
@@ -509,4 +526,182 @@ function formatVal(v: any): string {
   if (typeof v === "number") return v.toLocaleString("id-ID");
   if (typeof v === "object") return JSON.stringify(v);
   return String(v);
+}
+
+
+function DetailModal({
+  payrollId,
+  onClose,
+}: {
+  payrollId: string;
+  onClose: () => void;
+}) {
+  const { data, isLoading } = useQuery({
+    queryKey: ["payroll-detail", payrollId],
+    queryFn: () => api.adminPayrollDetail(payrollId),
+  });
+
+  const b = data?.breakdown;
+  const att = data?.attendanceSummary;
+  const emp = data?.employee;
+  const comps = data?.activeComponents ?? [];
+  const settings = data?.settings;
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={`Verifikasi Payroll — ${emp?.fullName ?? "..."}`}
+      size="lg"
+    >
+      <div className="max-h-[75vh] overflow-y-auto p-5 space-y-4">
+        {isLoading && (
+          <p className="text-center text-sm text-ink-500 py-8">Memuat...</p>
+        )}
+        {b && (
+          <>
+            {/* Info pegawai */}
+            <div className="rounded-2xl bg-ink-50 p-4">
+              <div className="grid grid-cols-2 gap-3 text-xs">
+                <div>
+                  <span className="text-ink-400">Nama</span>
+                  <p className="font-bold">{emp?.fullName}</p>
+                </div>
+                <div>
+                  <span className="text-ink-400">Kode</span>
+                  <p className="font-bold">{emp?.employeeCode}</p>
+                </div>
+                <div>
+                  <span className="text-ink-400">PTKP / NPWP</span>
+                  <p className="font-bold">
+                    {emp?.ptkpStatus} · {emp?.npwp ? "NPWP" : "non-NPWP"}
+                  </p>
+                </div>
+                <div>
+                  <span className="text-ink-400">Bank</span>
+                  <p className="font-bold">
+                    {emp?.bankName ?? "-"} {emp?.bankAccount ? `****${emp.bankAccount.slice(-4)}` : ""}
+                  </p>
+                </div>
+                <div>
+                  <span className="text-ink-400">Metode PPh</span>
+                  <p className="font-bold">{settings?.taxMethod ?? "TER"}</p>
+                </div>
+                <div>
+                  <span className="text-ink-400">Pola Gajian</span>
+                  <p className="font-bold capitalize">
+                    {settings?.cycle?.replace(/_/g, " ") ?? "end of month"}
+                    {settings?.cutoffDay > 0 ? ` (cut-off tgl ${settings.cutoffDay})` : ""}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Absensi summary */}
+            <div className="rounded-2xl border border-ink-100 p-4">
+              <p className="font-bold text-sm mb-2">📊 Data Absensi</p>
+              <div className="grid grid-cols-3 gap-2 text-xs">
+                <div className="rounded-xl bg-emerald-50 p-2 text-center">
+                  <p className="text-emerald-700 font-bold text-lg">{att?.present ?? 0}</p>
+                  <p className="text-emerald-600">Hadir</p>
+                </div>
+                <div className="rounded-xl bg-amber-50 p-2 text-center">
+                  <p className="text-amber-700 font-bold text-lg">{att?.late ?? 0}</p>
+                  <p className="text-amber-600">Telat</p>
+                </div>
+                <div className="rounded-xl bg-brand-50 p-2 text-center">
+                  <p className="text-brand-700 font-bold text-lg">{att?.totalDays ?? 0}</p>
+                  <p className="text-brand-600">Total</p>
+                </div>
+              </div>
+              <p className="mt-2 text-[11px] text-ink-500">
+                Range: {att?.range?.from} → {att?.range?.to} · 
+                Telat total {att?.totalLateMinutes ?? 0} menit · 
+                OT {att?.totalOvertimeMinutes ?? 0} menit
+              </p>
+            </div>
+
+            {/* Breakdown */}
+            <div className="rounded-2xl border border-ink-100 p-4">
+              <p className="font-bold text-sm mb-2">💰 Breakdown Perhitungan</p>
+              <table className="w-full text-xs">
+                <tbody className="divide-y divide-ink-100">
+                  <Row2 label="Gaji Pokok" value={b.baseSalary} />
+                  <Row2 label="Tunjangan" value={b.allowance} />
+                  <Row2 label={`Lembur (${b.overtimeHours ?? 0} jam)`} value={b.overtimePay} />
+                  {b.bonus > 0 && <Row2 label="Bonus" value={b.bonus} />}
+                  {b.thr > 0 && <Row2 label="THR" value={b.thr} />}
+                  <Row2 label="TOTAL PENDAPATAN" value={b.grossTotal} bold green />
+                  <Row2 label="BPJS Kesehatan (1%)" value={b.bpjsKesehatan} neg />
+                  <Row2 label="BPJS JHT (2%)" value={b.bpjsJht} neg />
+                  <Row2 label="BPJS JP (1%)" value={b.bpjsJp} neg />
+                  <Row2 label={`PPh 21 (${b.ptkpStatus})`} value={b.taxDeduction} neg />
+                  <Row2 label={`Potongan Telat (${b.lateMinutes}m)`} value={b.attendanceDeduction} neg />
+                  <Row2 label="TOTAL POTONGAN" value={b.totalDeduction} bold neg />
+                  <Row2 label="TAKE HOME PAY" value={b.netSalary} bold />
+                </tbody>
+              </table>
+              <p className="mt-2 text-[11px] text-ink-500">
+                Kontribusi BPJS perusahaan: {formatCurrency(b.employerBpjs)} (tidak potong take-home)
+              </p>
+            </div>
+
+            {/* Komponen aktif */}
+            {comps.length > 0 && (
+              <div className="rounded-2xl border border-ink-100 p-4">
+                <p className="font-bold text-sm mb-2">📋 Komponen Aktif</p>
+                <ul className="space-y-1 text-xs">
+                  {comps.map((c: any) => (
+                    <li key={c.id} className="flex justify-between">
+                      <span>
+                        {c.type === "earning" ? "+" : "-"} {c.name} ({c.category})
+                      </span>
+                      <span className="font-mono">
+                        {formatCurrency(c.amount)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            <div className="rounded-2xl bg-amber-50 p-3 text-xs text-amber-800">
+              💡 <strong>Verifikasi</strong>: Periksa breakdown di atas. Jika ada
+              ketidaksesuaian, Anda bisa edit bonus/potongan manual via tombol
+              PATCH (status masih draft), atau re-generate payroll setelah
+              koreksi data absensi/komponen.
+            </div>
+          </>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
+function Row2({
+  label,
+  value,
+  bold,
+  neg,
+  green,
+}: {
+  label: string;
+  value: number;
+  bold?: boolean;
+  neg?: boolean;
+  green?: boolean;
+}) {
+  return (
+    <tr>
+      <td className={`py-1.5 ${bold ? "font-bold" : ""}`}>{label}</td>
+      <td
+        className={`py-1.5 text-right font-mono ${bold ? "font-bold" : ""} ${
+          neg ? "text-danger-600" : green ? "text-emerald-600" : ""
+        }`}
+      >
+        {neg ? "- " : ""}
+        {formatCurrency(value)}
+      </td>
+    </tr>
+  );
 }

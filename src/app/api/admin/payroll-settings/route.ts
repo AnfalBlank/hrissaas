@@ -52,6 +52,12 @@ const Patch = z.object({
   defaultJkkClass: z.number().int().min(1).max(5).optional(),
   companyNpwp: z.string().optional(),
   companyTaxAddress: z.string().optional(),
+  // Pola gajian
+  payrollCycle: z
+    .enum(["end_of_month", "start_of_next_month", "custom_cutoff"])
+    .optional(),
+  cutoffDay: z.number().int().min(0).max(28).optional(),
+  payDate: z.number().int().min(1).max(31).optional(),
 });
 
 export async function PATCH(req: NextRequest) {

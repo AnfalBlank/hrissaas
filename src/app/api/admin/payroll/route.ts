@@ -164,14 +164,37 @@ export async function POST(req: NextRequest) {
     const [y, m] = period.split("-").map(Number);
     const monthNum = m;
 
+    // Tentukan range data absensi berdasar pola gajian + cutoff
+    const cycle =
+      (settingsRow?.payrollCycle as string) ?? "end_of_month";
+    const cutoffDay = settingsRow?.cutoffDay ?? 0;
+
+    let attStart: string;
+    let attEnd: string;
+
+    if (cycle === "custom_cutoff" && cutoffDay > 0) {
+      // Custom cut-off: tgl (cutoffDay+1) bulan sebelumnya s/d tgl cutoffDay bulan ini.
+      // Contoh cutoff=20, period=2026-05:
+      //   attStart = 2026-04-21, attEnd = 2026-05-20
+      const prevMonth = m === 1 ? 12 : m - 1;
+      const prevYear = m === 1 ? y - 1 : y;
+      attStart = `${prevYear}-${String(prevMonth).padStart(2, "0")}-${String(cutoffDay + 1).padStart(2, "0")}`;
+      attEnd = `${y}-${String(m).padStart(2, "0")}-${String(cutoffDay).padStart(2, "0")}`;
+    } else {
+      // Full month: 1 s/d akhir bulan (baik end_of_month atau start_of_next_month,
+      // perbedaan hanya kapan dibayar — data tetap bulan yang sama)
+      attStart = monthStart;
+      attEnd = monthEnd;
+    }
+
     const attendances = await db
       .select()
       .from(schema.attendances)
       .where(
         and(
           eq(schema.attendances.companyId, session.companyId),
-          gte(schema.attendances.date, monthStart),
-          lte(schema.attendances.date, monthEnd)
+          gte(schema.attendances.date, attStart),
+          lte(schema.attendances.date, attEnd)
         )
       );
 
@@ -182,8 +205,8 @@ export async function POST(req: NextRequest) {
         and(
           eq(schema.overtimeRequests.companyId, session.companyId),
           eq(schema.overtimeRequests.status, "approved"),
-          gte(schema.overtimeRequests.date, monthStart),
-          lte(schema.overtimeRequests.date, monthEnd)
+          gte(schema.overtimeRequests.date, attStart),
+          lte(schema.overtimeRequests.date, attEnd)
         )
       );
 
@@ -255,8 +278,8 @@ export async function POST(req: NextRequest) {
     const notifyTargets: { userId: string; net: number }[] = [];
 
     for (const e of employees) {
-      // Skip jika resign sebelum bulan ini
-      if (e.resignDate && new Date(e.resignDate) < new Date(monthStart)) {
+      // Skip jika resign sebelum periode data ini
+      if (e.resignDate && new Date(e.resignDate) < new Date(attStart)) {
         skipped++;
         continue;
       }
@@ -469,9 +492,13 @@ export async function POST(req: NextRequest) {
       created,
       updated,
       skipped,
+      attendanceRange: { from: attStart, to: attEnd },
+      cycle,
+      cutoffDay,
       message:
         `Payroll ${period} digenerate: ${created} baru, ${updated} diperbarui, ${skipped} dilewati. ` +
-        `Pajak menggunakan ${settings.taxMethod === "ANNUAL" ? "metode annual progresif (legacy)" : "TER PMK 168/2023"}.`,
+        `Data absensi: ${attStart} s/d ${attEnd}. ` +
+        `Pajak: ${settings.taxMethod === "ANNUAL" ? "annual progresif (legacy)" : "TER PMK 168/2023"}.`,
     });
   } catch (e) {
     return handleError(e);
