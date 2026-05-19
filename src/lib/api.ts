@@ -233,6 +233,44 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ period }),
     }),
+  adminPayrollUpdate: (
+    id: string,
+    data: {
+      status?: "draft" | "approved" | "paid" | "cancelled";
+      paymentMethod?: "transfer" | "cash" | "other";
+      paymentReference?: string;
+      paidAt?: string;
+      notes?: string;
+      bonus?: number;
+      thr?: number;
+      attendanceDeduction?: number;
+    }
+  ) =>
+    request(`/api/admin/payroll/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
+  adminPayrollDelete: (id: string) =>
+    request(`/api/admin/payroll/${id}`, { method: "DELETE" }),
+  adminBuktiPotongUrl: (employeeId: string, year: number) =>
+    `/api/admin/payroll/bukti-potong?employeeId=${employeeId}&year=${year}`,
+  adminPayrollComponentBulk: (data: {
+    scope: "all-active" | "selected" | "by-division";
+    employeeIds?: string[];
+    division?: string;
+    type: "earning" | "deduction";
+    category: string;
+    name: string;
+    amount: number;
+    recurring?: boolean;
+    startPeriod?: string;
+    endPeriod?: string;
+    notes?: string;
+  }) =>
+    request("/api/admin/payroll-components/bulk", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   adminShifts: () => request<{ items: any[] }>("/api/admin/shifts"),
   adminShiftCreate: (data: any) =>
     request("/api/admin/shifts", {

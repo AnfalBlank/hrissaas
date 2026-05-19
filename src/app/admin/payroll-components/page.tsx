@@ -34,6 +34,7 @@ const CATEGORY_OPTIONS = {
 export default function PayrollComponentsPage() {
   const qc = useQueryClient();
   const [creating, setCreating] = useState(false);
+  const [bulkOpen, setBulkOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const { data } = useQuery({
@@ -57,9 +58,14 @@ export default function PayrollComponentsPage() {
         title="Komponen Payroll"
         subtitle="Pendapatan tambahan & potongan tetap per pegawai"
         actions={
-          <Button onClick={() => setCreating(true)}>
-            <Plus className="h-4 w-4" /> Tambah Komponen
-          </Button>
+          <>
+            <Button variant="secondary" onClick={() => setBulkOpen(true)}>
+              <Plus className="h-4 w-4" /> Bulk Add
+            </Button>
+            <Button onClick={() => setCreating(true)}>
+              <Plus className="h-4 w-4" /> Tambah Komponen
+            </Button>
+          </>
         }
       />
       <div className="space-y-4 p-6">
@@ -147,6 +153,7 @@ export default function PayrollComponentsPage() {
       </div>
 
       {creating && <ComponentModal onClose={() => setCreating(false)} />}
+      {bulkOpen && <BulkComponentModal onClose={() => setBulkOpen(false)} />}
       <ConfirmDialog
         open={!!deleteId}
         onClose={() => setDeleteId(null)}
@@ -341,6 +348,226 @@ function ComponentModal({ onClose }: { onClose: () => void }) {
           </Button>
           <Button type="submit" disabled={create.isPending}>
             {create.isPending ? "Menyimpan..." : "Simpan"}
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+
+function BulkComponentModal({ onClose }: { onClose: () => void }) {
+  const qc = useQueryClient();
+  const [error, setError] = useState<string | null>(null);
+  const [form, setForm] = useState({
+    scope: "all-active" as "all-active" | "by-division",
+    division: "",
+    type: "earning" as "earning" | "deduction",
+    category: "allowance",
+    name: "",
+    amount: 0,
+    recurring: false,
+    startPeriod: "",
+    endPeriod: "",
+    notes: "",
+  });
+
+  const { data: employees } = useQuery({
+    queryKey: ["admin-employees"],
+    queryFn: () => api.adminEmployees(),
+  });
+
+  const divisions = Array.from(
+    new Set((employees?.items ?? []).map((e: any) => e.division).filter(Boolean))
+  );
+
+  const create = useMutation({
+    mutationFn: () =>
+      api.adminPayrollComponentBulk({
+        scope: form.scope,
+        division: form.scope === "by-division" ? form.division : undefined,
+        type: form.type,
+        category: form.category,
+        name: form.name,
+        amount: Number(form.amount),
+        recurring: form.recurring,
+        startPeriod: form.startPeriod || undefined,
+        endPeriod: form.endPeriod || undefined,
+        notes: form.notes || undefined,
+      }),
+    onSuccess: (res: any) => {
+      qc.invalidateQueries({ queryKey: ["payroll-components"] });
+      alert(res?.message ?? "Komponen berhasil ditambah ke semua target");
+      onClose();
+    },
+    onError: (e: any) => setError(e.message),
+  });
+
+  const categories = CATEGORY_OPTIONS[form.type];
+
+  return (
+    <Modal open onClose={onClose} title="Bulk Add Komponen Payroll" size="md">
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          create.mutate();
+        }}
+        className="space-y-3 p-5"
+      >
+        <div className="rounded-2xl bg-violet-50 p-3 text-xs text-violet-900">
+          Tambahkan satu komponen sekaligus ke banyak pegawai. Cocok untuk
+          allowance kolektif, kasbon kolektif, dll.
+        </div>
+        {error && (
+          <p className="rounded-xl bg-danger-500/10 p-3 text-xs text-danger-600">
+            {error}
+          </p>
+        )}
+        <div>
+          <label className="label">Target</label>
+          <select
+            className="input"
+            value={form.scope}
+            onChange={(e) =>
+              setForm({ ...form, scope: e.target.value as any })
+            }
+          >
+            <option value="all-active">Semua pegawai aktif</option>
+            <option value="by-division">Per Divisi</option>
+          </select>
+        </div>
+        {form.scope === "by-division" && (
+          <div>
+            <label className="label">Divisi</label>
+            <select
+              required
+              className="input"
+              value={form.division}
+              onChange={(e) => setForm({ ...form, division: e.target.value })}
+            >
+              <option value="">— pilih divisi —</option>
+              {divisions.map((d: string) => (
+                <option key={d} value={d}>
+                  {d}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="label">Jenis</label>
+            <select
+              className="input"
+              value={form.type}
+              onChange={(e) => {
+                const t = e.target.value as "earning" | "deduction";
+                setForm({
+                  ...form,
+                  type: t,
+                  category: CATEGORY_OPTIONS[t][0].v,
+                });
+              }}
+            >
+              <option value="earning">Pendapatan</option>
+              <option value="deduction">Potongan</option>
+            </select>
+          </div>
+          <div>
+            <label className="label">Kategori</label>
+            <select
+              className="input"
+              value={form.category}
+              onChange={(e) => setForm({ ...form, category: e.target.value })}
+            >
+              {categories.map((c) => (
+                <option key={c.v} value={c.v}>
+                  {c.l}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+        <div>
+          <label className="label">Nama / Deskripsi</label>
+          <input
+            required
+            className="input"
+            placeholder="mis. Tunjangan Transport"
+            value={form.name}
+            onChange={(e) => setForm({ ...form, name: e.target.value })}
+          />
+        </div>
+        <div>
+          <label className="label">Jumlah (Rp) per pegawai</label>
+          <input
+            required
+            type="number"
+            className="input"
+            value={form.amount}
+            onChange={(e) =>
+              setForm({ ...form, amount: e.target.value as any })
+            }
+          />
+        </div>
+        <label className="flex items-center gap-2 rounded-2xl bg-brand-50 p-3 text-sm">
+          <input
+            type="checkbox"
+            checked={form.recurring}
+            onChange={(e) =>
+              setForm({ ...form, recurring: e.target.checked })
+            }
+          />
+          <div className="flex-1">
+            <p className="font-semibold">Berulang setiap bulan</p>
+            <p className="text-xs text-ink-500">
+              Centang jika ini cicilan tetap atau allowance bulanan
+            </p>
+          </div>
+        </label>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="label">Mulai (YYYY-MM)</label>
+            <input
+              type="month"
+              className="input"
+              value={form.startPeriod}
+              onChange={(e) =>
+                setForm({ ...form, startPeriod: e.target.value })
+              }
+            />
+          </div>
+          <div>
+            <label className="label">Sampai (YYYY-MM, opsional)</label>
+            <input
+              type="month"
+              className="input"
+              value={form.endPeriod}
+              onChange={(e) =>
+                setForm({ ...form, endPeriod: e.target.value })
+              }
+            />
+          </div>
+        </div>
+        <div>
+          <label className="label">Catatan</label>
+          <textarea
+            className="input min-h-[64px]"
+            value={form.notes}
+            onChange={(e) => setForm({ ...form, notes: e.target.value })}
+          />
+        </div>
+        <div className="flex justify-end gap-2 pt-2">
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={onClose}
+            disabled={create.isPending}
+          >
+            Batal
+          </Button>
+          <Button type="submit" disabled={create.isPending}>
+            {create.isPending ? "Menambahkan..." : "Add to All"}
           </Button>
         </div>
       </form>

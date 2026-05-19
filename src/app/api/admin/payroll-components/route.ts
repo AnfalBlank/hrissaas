@@ -6,6 +6,7 @@ import { z } from "zod";
 import { and, desc, eq } from "drizzle-orm";
 import { db, schema } from "@/server/db/client";
 import { requireRole } from "@/server/auth/session";
+import { audit } from "@/server/auth/audit";
 import { ok, handleError } from "@/server/api/respond";
 
 const ADMIN_ROLES = ["super_admin", "owner", "hr"];
@@ -69,6 +70,18 @@ export async function POST(req: NextRequest) {
       .insert(schema.payrollComponents)
       .values({ ...body, companyId: session.companyId })
       .returning();
+    await audit({
+      companyId: session.companyId,
+      userId: session.sub,
+      action: "payroll.component.create",
+      details: {
+        componentId: row.id,
+        employeeId: body.employeeId,
+        type: body.type,
+        category: body.category,
+        amount: body.amount,
+      },
+    });
     return ok({ component: row });
   } catch (e) {
     return handleError(e);

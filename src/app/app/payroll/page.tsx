@@ -16,6 +16,10 @@ export default function PayrollPage() {
     queryKey: ["payroll-me"],
     queryFn: () => api.payrollMe(),
   });
+  const { data: meData } = useQuery({
+    queryKey: ["me"],
+    queryFn: () => api.me(),
+  });
   const [downloading, setDownloading] = useState(false);
 
   async function handleDownload(period?: string) {
@@ -51,6 +55,14 @@ export default function PayrollPage() {
       </div>
     );
   }
+
+  const employee = meData?.employee;
+  const bankName = employee?.bankName ?? "";
+  const bankAccount = employee?.bankAccount ?? "";
+  const bankLast4 = bankAccount ? `****${String(bankAccount).slice(-4)}` : "";
+  const bankLine = bankName
+    ? `Akan ditransfer ke ${bankName} · ${bankLast4 || "(no rek belum diisi)"}`
+    : "Lengkapi info rekening di profil untuk transfer otomatis.";
 
   const earnings: [string, number][] = [
     ["Gaji Pokok", c.baseSalary],
@@ -88,7 +100,7 @@ export default function PayrollPage() {
               {formatCurrency(c.netSalary)}
             </p>
             <p className="mt-1 text-xs text-white/80">
-              Akan ditransfer ke BCA · ****1234
+              {bankLine}
             </p>
             {data?.preview && (
               <Badge className="mt-2 bg-white/20 text-white">Preview</Badge>

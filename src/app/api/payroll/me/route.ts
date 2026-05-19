@@ -26,17 +26,31 @@ export async function GET(req: NextRequest) {
       : rows[0] ?? null;
 
     if (!current) {
+      // Preview berdasarkan profil pegawai (bukan slip resmi).
       const [employee] = await db
         .select()
         .from(schema.employees)
         .where(eq(schema.employees.id, session.employeeId));
+      const [settings] = await db
+        .select()
+        .from(schema.payrollSettings)
+        .where(eq(schema.payrollSettings.companyId, session.companyId));
 
       const calc = calculatePayroll({
         baseSalary: employee?.baseSalary ?? 0,
         ptkpStatus: employee?.ptkpStatus ?? "TK/0",
         jkkClass: employee?.jkkClass ?? 1,
+        hasNpwp: !!employee?.npwp,
         overtimeEntries: [],
         totalLateMinutes: 0,
+        settings: settings
+          ? {
+              workingHoursPerMonth: settings.workingHoursPerMonth ?? 173,
+              allowanceDefaultPct: settings.allowanceDefaultPct ?? 0.27,
+              taxMethod:
+                (settings.taxMethod as "TER" | "ANNUAL" | undefined) ?? "TER",
+            }
+          : {},
       });
 
       const today = new Date();

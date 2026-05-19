@@ -6,10 +6,20 @@ import { TopBar } from "@/components/admin/TopBar";
 import { Icon3D } from "@/components/Icon3D";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import { Modal } from "@/components/ui/Modal";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { api } from "@/lib/api";
 import { downloadFile } from "@/lib/download";
 import { formatCurrency } from "@/lib/utils";
-import { FileSpreadsheet, FileText, Play } from "lucide-react";
+import {
+  CheckCircle,
+  FileSpreadsheet,
+  FileText,
+  Play,
+  Trash2,
+  Wallet,
+  ScrollText,
+} from "lucide-react";
 
 function currentPeriod() {
   const d = new Date();
@@ -26,8 +36,10 @@ export default function PayrollAdmin() {
 
   const generate = useMutation({
     mutationFn: () => api.adminGeneratePayroll(period),
-    onSuccess: () =>
-      qc.invalidateQueries({ queryKey: ["admin-payroll", period] }),
+    onSuccess: (res: any) => {
+      qc.invalidateQueries({ queryKey: ["admin-payroll", period] });
+      if (res?.message) alert(res.message);
+    },
   });
 
   const generateThr = useMutation({
@@ -39,7 +51,25 @@ export default function PayrollAdmin() {
     },
   });
 
+  const update = useMutation({
+    mutationFn: (vars: { id: string; data: any }) =>
+      api.adminPayrollUpdate(vars.id, vars.data),
+    onSuccess: () =>
+      qc.invalidateQueries({ queryKey: ["admin-payroll", period] }),
+  });
+
+  const remove = useMutation({
+    mutationFn: (id: string) => api.adminPayrollDelete(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin-payroll", period] });
+      setDeleteId(null);
+    },
+  });
+
   const [exporting, setExporting] = useState<"" | "pdf" | "xlsx">("");
+  const [paymentTarget, setPaymentTarget] = useState<any | null>(null);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+
   async function handleExport(format: "pdf" | "xlsx") {
     setExporting(format);
     try {
@@ -50,6 +80,15 @@ export default function PayrollAdmin() {
       alert(e.message);
     } finally {
       setExporting("");
+    }
+  }
+
+  async function handleBuktiPotong(employeeId: string) {
+    const year = period.slice(0, 4);
+    try {
+      await downloadFile(api.adminBuktiPotongUrl(employeeId, Number(year)));
+    } catch (e: any) {
+      alert(e.message);
     }
   }
 
@@ -135,13 +174,14 @@ export default function PayrollAdmin() {
                   <th className="px-5 py-3 text-right">Potongan</th>
                   <th className="px-5 py-3 text-right">Take Home</th>
                   <th className="px-5 py-3">Status</th>
+                  <th className="px-5 py-3">Aksi</th>
                 </tr>
               </thead>
               <tbody>
                 {items.length === 0 && (
                   <tr>
                     <td
-                      colSpan={7}
+                      colSpan={8}
                       className="px-5 py-8 text-center text-ink-500"
                     >
                       Belum ada payroll. Klik &quot;Generate Payroll&quot; untuk
@@ -155,14 +195,25 @@ export default function PayrollAdmin() {
                     (r.taxDeduction || 0) +
                     (r.bpjsDeduction || 0);
                   const variant =
-                    r.status === "paid" ? "success" :
-                    r.status === "approved" ? "brand" : "warning";
+                    r.status === "paid"
+                      ? "success"
+                      : r.status === "approved"
+                        ? "brand"
+                        : r.status === "cancelled"
+                          ? "danger"
+                          : "warning";
                   return (
                     <tr
                       key={r.id}
                       className="border-t border-ink-100 hover:bg-ink-50/60"
                     >
-                      <td className="px-5 py-3 font-semibold">{r.fullName}</td>
+                      <td className="px-5 py-3">
+                        <p className="font-semibold">{r.fullName}</p>
+                        <p className="text-[10px] text-ink-500">
+                          {r.employeeCode}
+                          {r.bankName ? ` · ${r.bankName} ****${String(r.bankAccount ?? "").slice(-4)}` : ""}
+                        </p>
+                      </td>
                       <td className="px-5 py-3">{r.division}</td>
                       <td className="px-5 py-3 text-right font-mono">
                         {formatCurrency(r.baseSalary)}
@@ -179,6 +230,49 @@ export default function PayrollAdmin() {
                       <td className="px-5 py-3">
                         <Badge variant={variant as any}>{r.status}</Badge>
                       </td>
+                      <td className="px-5 py-3">
+                        <div className="flex items-center gap-1">
+                          {r.status === "draft" && (
+                            <button
+                              onClick={() =>
+                                update.mutate({
+                                  id: r.id,
+                                  data: { status: "approved" },
+                                })
+                              }
+                              className="rounded-lg p-1.5 text-emerald-600 hover:bg-emerald-50"
+                              title="Approve"
+                            >
+                              <CheckCircle className="h-4 w-4" />
+                            </button>
+                          )}
+                          {r.status === "approved" && (
+                            <button
+                              onClick={() => setPaymentTarget(r)}
+                              className="rounded-lg p-1.5 text-brand-600 hover:bg-brand-50"
+                              title="Mark as Paid"
+                            >
+                              <Wallet className="h-4 w-4" />
+                            </button>
+                          )}
+                          <button
+                            onClick={() => handleBuktiPotong(r.employeeId)}
+                            className="rounded-lg p-1.5 text-violet-600 hover:bg-violet-50"
+                            title="Bukti Potong (1721-A1) tahunan"
+                          >
+                            <ScrollText className="h-4 w-4" />
+                          </button>
+                          {r.status !== "paid" && (
+                            <button
+                              onClick={() => setDeleteId(r.id)}
+                              className="rounded-lg p-1.5 text-danger-600 hover:bg-danger-50"
+                              title="Hapus"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          )}
+                        </div>
+                      </td>
                     </tr>
                   );
                 })}
@@ -187,6 +281,116 @@ export default function PayrollAdmin() {
           </div>
         </div>
       </div>
+
+      {paymentTarget && (
+        <PaymentModal
+          payroll={paymentTarget}
+          onClose={() => setPaymentTarget(null)}
+          onSubmit={(data) => {
+            update.mutate({ id: paymentTarget.id, data: { ...data, status: "paid" } });
+            setPaymentTarget(null);
+          }}
+        />
+      )}
+      <ConfirmDialog
+        open={!!deleteId}
+        onClose={() => setDeleteId(null)}
+        onConfirm={() => deleteId && remove.mutate(deleteId)}
+        title="Hapus payroll?"
+        description="Payroll yang dihapus akan hilang permanen. Pastikan belum dibayarkan."
+        loading={remove.isPending}
+      />
     </>
+  );
+}
+
+function PaymentModal({
+  payroll,
+  onClose,
+  onSubmit,
+}: {
+  payroll: any;
+  onClose: () => void;
+  onSubmit: (data: {
+    paymentMethod: "transfer" | "cash" | "other";
+    paymentReference?: string;
+    paidAt: string;
+  }) => void;
+}) {
+  const [method, setMethod] = useState<"transfer" | "cash" | "other">(
+    "transfer"
+  );
+  const [ref, setRef] = useState("");
+  const [paidAt, setPaidAt] = useState(new Date().toISOString().slice(0, 10));
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={`Mark sebagai Paid — ${payroll.fullName}`}
+      size="md"
+    >
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          onSubmit({
+            paymentMethod: method,
+            paymentReference: ref || undefined,
+            paidAt,
+          });
+        }}
+        className="space-y-3 p-5"
+      >
+        <div className="rounded-2xl bg-emerald-50 p-3 text-sm text-emerald-900">
+          <p className="font-semibold">{payroll.fullName}</p>
+          <p>
+            Take Home: <span className="font-mono font-bold">{formatCurrency(payroll.netSalary)}</span>
+          </p>
+          {payroll.bankName && (
+            <p className="text-xs">
+              Tujuan: {payroll.bankName} ****
+              {String(payroll.bankAccount ?? "").slice(-4)}
+            </p>
+          )}
+        </div>
+        <div>
+          <label className="label">Metode Pembayaran</label>
+          <select
+            className="input"
+            value={method}
+            onChange={(e) => setMethod(e.target.value as any)}
+          >
+            <option value="transfer">Transfer Bank</option>
+            <option value="cash">Tunai</option>
+            <option value="other">Lainnya</option>
+          </select>
+        </div>
+        <div>
+          <label className="label">No. Referensi / Bukti Transfer</label>
+          <input
+            className="input"
+            placeholder="opsional · mis. TRX1234567"
+            value={ref}
+            onChange={(e) => setRef(e.target.value)}
+          />
+        </div>
+        <div>
+          <label className="label">Tanggal Bayar</label>
+          <input
+            type="date"
+            className="input"
+            value={paidAt}
+            onChange={(e) => setPaidAt(e.target.value)}
+          />
+        </div>
+        <div className="flex justify-end gap-2 pt-2">
+          <Button type="button" variant="secondary" onClick={onClose}>
+            Batal
+          </Button>
+          <Button type="submit">
+            <Wallet className="h-4 w-4" /> Mark Paid
+          </Button>
+        </div>
+      </form>
+    </Modal>
   );
 }

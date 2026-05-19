@@ -3,13 +3,15 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest } from "next/server";
 import { z } from "zod";
-import { and, desc, eq, gte, lte, or } from "drizzle-orm";
+import { and, desc, eq, gte, lte } from "drizzle-orm";
 import { db, schema } from "@/server/db/client";
 import { requireRole } from "@/server/auth/session";
+import { audit } from "@/server/auth/audit";
 import { ok, handleError } from "@/server/api/respond";
 import { notify } from "@/server/notifications/dispatch";
 import {
   calculatePayroll,
+  prorataFactor,
   type ExtraComponent,
   type OvertimeEntry,
   type PayrollSettingsInput,
@@ -30,6 +32,7 @@ export async function GET(req: NextRequest) {
     const rows = await db
       .select({
         id: schema.payrolls.id,
+        employeeId: schema.payrolls.employeeId,
         period: schema.payrolls.period,
         baseSalary: schema.payrolls.baseSalary,
         allowance: schema.payrolls.allowance,
@@ -48,8 +51,17 @@ export async function GET(req: NextRequest) {
         ptkpStatus: schema.payrolls.ptkpStatus,
         netSalary: schema.payrolls.netSalary,
         status: schema.payrolls.status,
+        generatedAt: schema.payrolls.generatedAt,
+        approvedAt: schema.payrolls.approvedAt,
+        paidAt: schema.payrolls.paidAt,
+        paymentMethod: schema.payrolls.paymentMethod,
+        paymentReference: schema.payrolls.paymentReference,
+        notes: schema.payrolls.notes,
         fullName: schema.employees.fullName,
         division: schema.employees.division,
+        employeeCode: schema.employees.employeeCode,
+        bankName: schema.employees.bankName,
+        bankAccount: schema.employees.bankAccount,
       })
       .from(schema.payrolls)
       .leftJoin(
@@ -92,6 +104,15 @@ export async function GET(req: NextRequest) {
 
 const Generate = z.object({ period: z.string() });
 
+/**
+ * Akhir bulan akurat (Feb 28/29, 30/31).
+ */
+function lastDayOfMonth(period: string): string {
+  const [y, m] = period.split("-").map(Number);
+  const d = new Date(y, m, 0); // hari 0 = hari terakhir bulan sebelumnya
+  return `${y}-${String(m).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 export async function POST(req: NextRequest) {
   try {
     const session = await requireRole(["super_admin", "hr"]);
@@ -107,28 +128,40 @@ export async function POST(req: NextRequest) {
           workingHoursPerMonth: settingsRow.workingHoursPerMonth ?? 173,
           allowanceDefaultPct: settingsRow.allowanceDefaultPct ?? 0.27,
           lateDeductionCapPct: settingsRow.lateDeductionCapPct ?? 0.1,
+          lateDeductionBase:
+            (settingsRow.lateDeductionBase as any) ?? "baseSalary",
           otWeekdayFirstRate: settingsRow.otWeekdayFirstRate ?? 1.5,
           otWeekdayRate: settingsRow.otWeekdayRate ?? 2.0,
           otHolidayFirst8hRate: settingsRow.otHolidayFirst8hRate ?? 2.0,
           otHoliday9thRate: settingsRow.otHoliday9thRate ?? 3.0,
           otHoliday10thRate: settingsRow.otHoliday10thRate ?? 4.0,
+          workDaysPerWeek: (settingsRow.workDaysPerWeek as 5 | 6) ?? 5,
           thrFullMonths: settingsRow.thrFullMonths ?? 12,
           thrMinMonths: settingsRow.thrMinMonths ?? 1,
           bpjsKesehatanEnabled: settingsRow.bpjsKesehatanEnabled ?? true,
           bpjsJhtEnabled: settingsRow.bpjsJhtEnabled ?? true,
           bpjsJpEnabled: settingsRow.bpjsJpEnabled ?? true,
           taxScheme: settingsRow.taxScheme ?? "gross",
+          taxMethod: (settingsRow.taxMethod as "TER" | "ANNUAL") ?? "TER",
           defaultJkkClass: settingsRow.defaultJkkClass ?? 1,
         }
       : {};
 
+    // Filter active employees only
     const employees = await db
       .select()
       .from(schema.employees)
-      .where(eq(schema.employees.companyId, session.companyId));
+      .where(
+        and(
+          eq(schema.employees.companyId, session.companyId),
+          eq(schema.employees.status, "active")
+        )
+      );
 
     const monthStart = `${period}-01`;
-    const monthEnd = `${period}-31`;
+    const monthEnd = lastDayOfMonth(period);
+    const [y, m] = period.split("-").map(Number);
+    const monthNum = m;
 
     const attendances = await db
       .select()
@@ -164,11 +197,9 @@ export async function POST(req: NextRequest) {
         .filter((h) => h.recurringYearly)
         .map((h) => h.date.slice(5)) // MM-DD
     );
-
     const isHolidayDate = (date: string) => {
       if (holidaySet.has(date)) return true;
       if (recurringHolidayMmDd.has(date.slice(5))) return true;
-      // Sunday
       const d = new Date(date);
       return d.getDay() === 0;
     };
@@ -187,10 +218,8 @@ export async function POST(req: NextRequest) {
       const deductions: ExtraComponent[] = [];
       for (const c of allComponents) {
         if (c.employeeId !== empId) continue;
-        // Period filter
         if (c.startPeriod && c.startPeriod > period) continue;
         if (c.endPeriod && c.endPeriod < period) continue;
-        // For non-recurring, must match exact period
         if (!c.recurring && c.startPeriod && c.startPeriod !== period) continue;
         const item: ExtraComponent = {
           type: c.type as any,
@@ -204,30 +233,46 @@ export async function POST(req: NextRequest) {
       return { earnings, deductions };
     }
 
+    // YTD aggregates untuk TER December reconciliation
+    let priorPayrolls: typeof schema.payrolls.$inferSelect[] = [];
+    if (monthNum === 12 && (settings.taxMethod ?? "TER") === "TER") {
+      priorPayrolls = await db
+        .select()
+        .from(schema.payrolls)
+        .where(
+          and(
+            eq(schema.payrolls.companyId, session.companyId),
+            gte(schema.payrolls.period, `${y}-01`),
+            lte(schema.payrolls.period, `${y}-11`)
+          )
+        );
+    }
+
     let created = 0;
+    let updated = 0;
+    let skipped = 0;
     const notifyTargets: { userId: string; net: number }[] = [];
 
     for (const e of employees) {
+      // Skip jika resign sebelum bulan ini
+      if (e.resignDate && new Date(e.resignDate) < new Date(monthStart)) {
+        skipped++;
+        continue;
+      }
       const empAtt = attendances.filter((a) => a.employeeId === e.id);
       const totalLateMinutes = empAtt.reduce(
         (s, a) => s + (a.lateMinutes ?? 0),
         0
       );
 
-      // Build overtime entries — combine attendance overtime + approved requests
       const overtimeEntries: OvertimeEntry[] = [];
-      // From attendance.overtimeMinutes (post check-out): treat as weekday by default
       const otFromAttMin = empAtt.reduce(
         (s, a) => s + (a.overtimeMinutes ?? 0),
         0
       );
       if (otFromAttMin > 0) {
-        overtimeEntries.push({
-          hours: otFromAttMin / 60,
-          isHoliday: false,
-        });
+        overtimeEntries.push({ hours: otFromAttMin / 60, isHoliday: false });
       }
-      // From approved overtime requests — use isHoliday flag OR auto from holiday calendar
       for (const o of approvedOvertimes) {
         if (o.employeeId !== e.id) continue;
         const hol = o.isHoliday ?? isHolidayDate(o.date);
@@ -245,6 +290,43 @@ export async function POST(req: NextRequest) {
         (c) => c.category !== "thr" && c.category !== "bonus"
       );
 
+      // YTD aggregate (jika Desember + TER)
+      let ytdGrossPriorMonths: number | undefined;
+      let ytdEmployeeBpjsPriorMonths: number | undefined;
+      let ytdTaxPaidPriorMonths: number | undefined;
+      if (monthNum === 12 && (settings.taxMethod ?? "TER") === "TER") {
+        const priorE = priorPayrolls.filter((p) => p.employeeId === e.id);
+        ytdGrossPriorMonths = priorE.reduce(
+          (s, p) =>
+            s +
+            (p.baseSalary || 0) +
+            (p.allowance || 0) +
+            (p.overtimePay || 0) +
+            (p.bonus || 0) +
+            (p.thr || 0),
+          0
+        );
+        ytdEmployeeBpjsPriorMonths = priorE.reduce(
+          (s, p) => s + (p.bpjsDeduction || 0),
+          0
+        );
+        ytdTaxPaidPriorMonths = priorE.reduce(
+          (s, p) => s + (p.taxDeduction || 0),
+          0
+        );
+      }
+
+      // Pro-rata join/resign tengah bulan
+      const factor = prorataFactor({
+        period,
+        joinDate: e.joinDate ? new Date(e.joinDate) : null,
+        resignDate: e.resignDate ? new Date(e.resignDate) : null,
+      });
+      if (factor === 0) {
+        skipped++;
+        continue;
+      }
+
       const calc = calculatePayroll({
         baseSalary: e.baseSalary ?? 0,
         ptkpStatus: e.ptkpStatus ?? "TK/0",
@@ -257,6 +339,11 @@ export async function POST(req: NextRequest) {
         extraEarnings: otherEarnings,
         extraDeductions: deductions,
         settings,
+        month: monthNum,
+        ytdGrossPriorMonths,
+        ytdEmployeeBpjsPriorMonths,
+        ytdTaxPaidPriorMonths,
+        prorataFactor: factor,
       });
 
       const payrollData = {
@@ -276,7 +363,13 @@ export async function POST(req: NextRequest) {
         taxDeduction: calc.taxDeduction,
         ptkpStatus: calc.ptkpStatus,
         netSalary: calc.netSalary,
-        status: "draft",
+        status: "draft" as const,
+        generatedById: session.sub,
+        generatedAt: new Date(),
+        notes:
+          factor < 1
+            ? `Pro-rata ${(factor * 100).toFixed(0)}% (join/resign tengah bulan)`
+            : null,
       };
 
       const existing = await db
@@ -289,10 +382,17 @@ export async function POST(req: NextRequest) {
           )
         );
       if (existing.length > 0) {
-        await db
-          .update(schema.payrolls)
-          .set(payrollData)
-          .where(eq(schema.payrolls.id, existing[0].id));
+        // Hanya update jika status masih draft (jangan timpa yang sudah approved/paid)
+        if (existing[0].status === "draft") {
+          await db
+            .update(schema.payrolls)
+            .set(payrollData)
+            .where(eq(schema.payrolls.id, existing[0].id));
+          updated++;
+        } else {
+          skipped++;
+          continue;
+        }
       } else {
         await db.insert(schema.payrolls).values({
           ...payrollData,
@@ -304,6 +404,20 @@ export async function POST(req: NextRequest) {
       }
       if (e.userId) notifyTargets.push({ userId: e.userId, net: calc.netSalary });
     }
+
+    await audit({
+      companyId: session.companyId,
+      userId: session.sub,
+      action: "payroll.generate",
+      details: {
+        period,
+        employeeTotal: employees.length,
+        created,
+        updated,
+        skipped,
+        taxMethod: settings.taxMethod ?? "TER",
+      },
+    });
 
     Promise.all(
       notifyTargets.map((t) =>
@@ -324,8 +438,11 @@ export async function POST(req: NextRequest) {
       period,
       employeesProcessed: employees.length,
       created,
+      updated,
+      skipped,
       message:
-        "Payroll digenerate dengan PPh21, BPJS, lembur (weekday & holiday), THR, komponen tambahan, dan potongan telat sesuai regulasi.",
+        `Payroll ${period} digenerate: ${created} baru, ${updated} diperbarui, ${skipped} dilewati. ` +
+        `Pajak menggunakan ${settings.taxMethod === "ANNUAL" ? "metode annual progresif (legacy)" : "TER PMK 168/2023"}.`,
     });
   } catch (e) {
     return handleError(e);

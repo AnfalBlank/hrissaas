@@ -77,16 +77,31 @@ export async function GET(req: NextRequest) {
         (r.attendanceDeduction || 0) +
         (r.taxDeduction || 0) +
         (r.bpjsDeduction || 0),
-      bankInfo: r.bankName ? `${r.bankName} ${r.bankAccount ?? ""}` : "-",
+      bankInfo: r.bankName
+        ? `${r.bankName} ****${String(r.bankAccount ?? "").slice(-4)}`
+        : "-",
     }));
+
+    // Load company tax info
+    const [company] = await db
+      .select()
+      .from(schema.companies)
+      .where(eq(schema.companies.id, session.companyId));
+    const [settingsRow] = await db
+      .select()
+      .from(schema.payrollSettings)
+      .where(eq(schema.payrollSettings.companyId, session.companyId));
+    const companyName = company?.name ?? "Perusahaan";
+    const companyNpwp = settingsRow?.companyNpwp ?? "";
+    const companyAddress = settingsRow?.companyTaxAddress ?? "";
 
     const filename = `payroll-${period}`;
 
     if (format === "xlsx" || format === "excel") {
       const buf = await buildExcel({
         sheet: `Payroll ${period}`,
-        title: `Laporan Payroll ${period}`,
-        subtitle: `Total ${rows.length} pegawai · Take Home: Rp ${(totals.netSalary || 0).toLocaleString("id-ID")}`,
+        title: `Laporan Payroll ${period} · ${companyName}${companyNpwp ? ` · NPWP ${companyNpwp}` : ""}`,
+        subtitle: `Total ${rows.length} pegawai · Take Home: Rp ${(totals.netSalary || 0).toLocaleString("id-ID")}${companyAddress ? ` · ${companyAddress}` : ""}`,
         columns: [
           { header: "Kode", key: "employeeCode", width: 14 },
           { header: "Nama", key: "fullName", width: 28 },
@@ -122,8 +137,8 @@ export async function GET(req: NextRequest) {
 
     // PDF
     const buf = await buildPdfTable({
-      title: "Laporan Payroll",
-      subtitle: `Periode ${period}`,
+      title: `Laporan Payroll · ${companyName}`,
+      subtitle: `Periode ${period}${companyNpwp ? ` · NPWP ${companyNpwp}` : ""}${companyAddress ? `\n${companyAddress}` : ""}`,
       meta: {
         Pegawai: String(rows.length),
         "Take Home": fmtCurrency(totals.netSalary || 0),

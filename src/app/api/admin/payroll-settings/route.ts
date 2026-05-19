@@ -6,6 +6,7 @@ import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { db, schema } from "@/server/db/client";
 import { requireRole } from "@/server/auth/session";
+import { audit } from "@/server/auth/audit";
 import { ok, handleError } from "@/server/api/respond";
 
 const ADMIN_ROLES = ["super_admin", "owner", "hr"];
@@ -34,17 +35,20 @@ const Patch = z.object({
   allowanceDefaultPct: z.number().min(0).max(2).optional(),
   workingHoursPerMonth: z.number().int().positive().optional(),
   lateDeductionCapPct: z.number().min(0).max(1).optional(),
+  lateDeductionBase: z.enum(["baseSalary", "monthlyGross"]).optional(),
   otWeekdayFirstRate: z.number().positive().optional(),
   otWeekdayRate: z.number().positive().optional(),
   otHolidayFirst8hRate: z.number().positive().optional(),
   otHoliday9thRate: z.number().positive().optional(),
   otHoliday10thRate: z.number().positive().optional(),
+  workDaysPerWeek: z.union([z.literal(5), z.literal(6)]).optional(),
   thrFullMonths: z.number().int().min(1).optional(),
   thrMinMonths: z.number().int().min(0).optional(),
   bpjsKesehatanEnabled: z.boolean().optional(),
   bpjsJhtEnabled: z.boolean().optional(),
   bpjsJpEnabled: z.boolean().optional(),
   taxScheme: z.enum(["gross", "gross-up", "net"]).optional(),
+  taxMethod: z.enum(["TER", "ANNUAL"]).optional(),
   defaultJkkClass: z.number().int().min(1).max(5).optional(),
   companyNpwp: z.string().optional(),
   companyTaxAddress: z.string().optional(),
@@ -71,6 +75,12 @@ export async function PATCH(req: NextRequest) {
         .where(eq(schema.payrollSettings.companyId, session.companyId))
         .returning();
     }
+    await audit({
+      companyId: session.companyId,
+      userId: session.sub,
+      action: "payroll.settings.update",
+      details: { changedKeys: Object.keys(body) },
+    });
     return ok({ settings: existing });
   } catch (e) {
     return handleError(e);

@@ -116,7 +116,8 @@ export const employees = sqliteTable(
     bankName: text("bank_name"),
     bankAccount: text("bank_account"),
     joinDate: integer("join_date", { mode: "timestamp_ms" }),
-    status: text("status").default("active"), // active|leave|inactive
+    resignDate: integer("resign_date", { mode: "timestamp_ms" }),
+    status: text("status").default("active"), // active|leave|inactive|resigned
     createdAt: ts("created_at"),
   },
   (t) => ({
@@ -195,39 +196,55 @@ export const leaveQuotas = sqliteTable("leave_quotas", {
 });
 
 /* ---------------- payrolls ---------------- */
-export const payrolls = sqliteTable("payrolls", {
-  id: id(),
-  employeeId: text("employee_id")
-    .notNull()
-    .references(() => employees.id, { onDelete: "cascade" }),
-  companyId: text("company_id")
-    .notNull()
-    .references(() => companies.id, { onDelete: "cascade" }),
-  period: text("period").notNull(), // YYYY-MM
-  baseSalary: integer("base_salary").notNull().default(0),
-  allowance: integer("allowance").notNull().default(0),
-  overtimePay: integer("overtime_pay").notNull().default(0),
-  overtimeHours: integer("overtime_hours").notNull().default(0),
-  bonus: integer("bonus").notNull().default(0),
-  attendanceDeduction: integer("attendance_deduction").notNull().default(0),
-  lateMinutes: integer("late_minutes").notNull().default(0),
-  // BPJS — split for transparency on slip
-  bpjsKesehatan: integer("bpjs_kesehatan").notNull().default(0),
-  bpjsJht: integer("bpjs_jht").notNull().default(0),
-  bpjsJp: integer("bpjs_jp").notNull().default(0),
-  // Employer share — for company reporting (not subtracted from take-home)
-  employerBpjs: integer("employer_bpjs").notNull().default(0),
-  // Tax
-  taxDeduction: integer("tax_deduction").notNull().default(0),
-  ptkpStatus: text("ptkp_status").default("TK/0"),
-  // Aggregate
-  bpjsDeduction: integer("bpjs_deduction").notNull().default(0), // legacy total
-  thr: integer("thr").notNull().default(0),
-  netSalary: integer("net_salary").notNull().default(0),
-  status: text("status").default("draft"), // draft|approved|paid
-  paidAt: integer("paid_at", { mode: "timestamp_ms" }),
-  createdAt: ts("created_at"),
-});
+export const payrolls = sqliteTable(
+  "payrolls",
+  {
+    id: id(),
+    employeeId: text("employee_id")
+      .notNull()
+      .references(() => employees.id, { onDelete: "cascade" }),
+    companyId: text("company_id")
+      .notNull()
+      .references(() => companies.id, { onDelete: "cascade" }),
+    period: text("period").notNull(), // YYYY-MM
+    baseSalary: integer("base_salary").notNull().default(0),
+    allowance: integer("allowance").notNull().default(0),
+    overtimePay: integer("overtime_pay").notNull().default(0),
+    overtimeHours: integer("overtime_hours").notNull().default(0),
+    bonus: integer("bonus").notNull().default(0),
+    attendanceDeduction: integer("attendance_deduction").notNull().default(0),
+    lateMinutes: integer("late_minutes").notNull().default(0),
+    // BPJS — split for transparency on slip
+    bpjsKesehatan: integer("bpjs_kesehatan").notNull().default(0),
+    bpjsJht: integer("bpjs_jht").notNull().default(0),
+    bpjsJp: integer("bpjs_jp").notNull().default(0),
+    // Employer share — for company reporting (not subtracted from take-home)
+    employerBpjs: integer("employer_bpjs").notNull().default(0),
+    // Tax
+    taxDeduction: integer("tax_deduction").notNull().default(0),
+    ptkpStatus: text("ptkp_status").default("TK/0"),
+    // Aggregate
+    bpjsDeduction: integer("bpjs_deduction").notNull().default(0), // legacy total
+    thr: integer("thr").notNull().default(0),
+    netSalary: integer("net_salary").notNull().default(0),
+    status: text("status").default("draft"), // draft|approved|paid|cancelled
+    // Workflow audit
+    generatedById: text("generated_by_id"),
+    generatedAt: integer("generated_at", { mode: "timestamp_ms" }),
+    approvedById: text("approved_by_id"),
+    approvedAt: integer("approved_at", { mode: "timestamp_ms" }),
+    paidAt: integer("paid_at", { mode: "timestamp_ms" }),
+    paymentMethod: text("payment_method"), // transfer|cash|other
+    paymentReference: text("payment_reference"),
+    payslipPdfUrl: text("payslip_pdf_url"),
+    notes: text("notes"),
+    createdAt: ts("created_at"),
+  },
+  (t) => ({
+    empPeriodIdx: uniqueIndex("payroll_emp_period_idx").on(t.employeeId, t.period),
+    coPeriodIdx: index("payroll_co_period_idx").on(t.companyId, t.period),
+  })
+);
 
 /* ---------------- notifications ---------------- */
 export const notifications = sqliteTable("notifications", {
@@ -371,8 +388,13 @@ export const payrollSettings = sqliteTable("payroll_settings", {
   bpjsJpEnabled: integer("bpjs_jp_enabled", { mode: "boolean" }).default(true),
   // Tax preference
   taxScheme: text("tax_scheme").default("gross"), // gross|gross-up|net
+  taxMethod: text("tax_method").default("TER"), // TER (PMK 168/2023) | ANNUAL (legacy)
   // Default JKK
   defaultJkkClass: integer("default_jkk_class").default(1),
+  // Hari kerja per minggu (untuk lembur libur)
+  workDaysPerWeek: integer("work_days_per_week").default(5),
+  // Late deduction base
+  lateDeductionBase: text("late_deduction_base").default("baseSalary"), // baseSalary|monthlyGross
   // Company tax info
   companyNpwp: text("company_npwp"),
   companyTaxAddress: text("company_tax_address"),

@@ -29,11 +29,13 @@ export default function PayrollSettingsPage() {
         allowanceDefaultPct: Number(form.allowanceDefaultPct),
         workingHoursPerMonth: Number(form.workingHoursPerMonth),
         lateDeductionCapPct: Number(form.lateDeductionCapPct),
+        lateDeductionBase: form.lateDeductionBase,
         otWeekdayFirstRate: Number(form.otWeekdayFirstRate),
         otWeekdayRate: Number(form.otWeekdayRate),
         otHolidayFirst8hRate: Number(form.otHolidayFirst8hRate),
         otHoliday9thRate: Number(form.otHoliday9thRate),
         otHoliday10thRate: Number(form.otHoliday10thRate),
+        workDaysPerWeek: Number(form.workDaysPerWeek) as 5 | 6,
         thrFullMonths: Number(form.thrFullMonths),
         thrMinMonths: Number(form.thrMinMonths),
         bpjsKesehatanEnabled: !!form.bpjsKesehatanEnabled,
@@ -41,6 +43,7 @@ export default function PayrollSettingsPage() {
         bpjsJpEnabled: !!form.bpjsJpEnabled,
         defaultJkkClass: Number(form.defaultJkkClass),
         taxScheme: form.taxScheme,
+        taxMethod: form.taxMethod,
         companyNpwp: form.companyNpwp || "",
         companyTaxAddress: form.companyTaxAddress || "",
       }),
@@ -118,6 +121,31 @@ export default function PayrollSettingsPage() {
               }
             />
             <Hint>Default 0.10 (= max 10% gaji pokok)</Hint>
+          </Field>
+          <Field label="Basis Potongan Telat">
+            <select
+              className="input"
+              value={form.lateDeductionBase ?? "baseSalary"}
+              onChange={(e) =>
+                setForm({ ...form, lateDeductionBase: e.target.value })
+              }
+            >
+              <option value="baseSalary">Gaji Pokok (lebih lazim)</option>
+              <option value="monthlyGross">Gaji + Tunjangan</option>
+            </select>
+          </Field>
+          <Field label="Hari Kerja per Minggu">
+            <select
+              className="input"
+              value={form.workDaysPerWeek ?? 5}
+              onChange={(e) =>
+                setForm({ ...form, workDaysPerWeek: e.target.value })
+              }
+            >
+              <option value="5">5 hari (Senin-Jumat)</option>
+              <option value="6">6 hari (Senin-Sabtu)</option>
+            </select>
+            <Hint>Mempengaruhi rate lembur hari libur</Hint>
           </Field>
         </Section>
 
@@ -267,6 +295,20 @@ export default function PayrollSettingsPage() {
 
         {/* Tax */}
         <Section icon="receipt" title="Pajak (PPh 21)">
+          <Field label="Metode PPh 21">
+            <select
+              className="input"
+              value={form.taxMethod ?? "TER"}
+              onChange={(e) => setForm({ ...form, taxMethod: e.target.value })}
+            >
+              <option value="TER">TER PMK 168/2023 (rekomendasi 2024+)</option>
+              <option value="ANNUAL">Annual progresif ÷ 12 (legacy pra-2024)</option>
+            </select>
+            <Hint>
+              TER pakai tarif efektif rata-rata bulanan; Desember akan otomatis
+              direkonsiliasi ke pajak progresif tahunan.
+            </Hint>
+          </Field>
           <Field label="Skema PPh 21">
             <select
               className="input"

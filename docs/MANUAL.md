@@ -1642,3 +1642,138 @@ Untuk bantuan teknis lebih lanjut:
 ---
 
 *Dokumen ini terakhir diperbarui pada Januari 2025. Untuk informasi terbaru, hubungi tim pengembang.*
+
+
+---
+
+## 9. Modul Payroll v2 — Improvements (Mei 2026)
+
+### 9.1 PPh 21 — Migrasi ke TER PMK 168/2023
+
+Sesuai Peraturan Menteri Keuangan Nomor 168/2023, perhitungan PPh 21 bulanan
+sekarang menggunakan **Tarif Efektif Rata-rata (TER)** untuk Januari–November,
+dan **rekonsiliasi progresif tahunan** di Desember.
+
+- Kategori TER otomatis ditentukan dari status PTKP pegawai:
+  - **A**: TK/0, TK/1, K/0
+  - **B**: TK/2, TK/3, K/1, K/2
+  - **C**: K/3
+- Setting baru di `Pengaturan Payroll` → `Metode PPh 21`:
+  - `TER` (default, rekomendasi 2024+)
+  - `ANNUAL` (legacy progresif ÷ 12, untuk audit historis)
+- Rekonsiliasi Desember otomatis hitung selisih antara progresif tahunan
+  vs total TER yang telah dipotong Jan–Nov.
+- Tarif non-NPWP +20% tetap berlaku.
+
+### 9.2 Workflow Payroll (Draft → Approved → Paid)
+
+Setiap baris payroll sekarang punya tombol aksi:
+
+- **Approve** (icon centang hijau): hanya untuk status `draft`. Mengisi
+  `approvedById` dan `approvedAt`.
+- **Mark Paid** (icon dompet biru): hanya untuk status `approved`.
+  Membuka modal yang meminta:
+  - Metode pembayaran (Transfer / Tunai / Lainnya)
+  - No. referensi (opsional)
+  - Tanggal bayar
+  Setelah disimpan, pegawai otomatis menerima notifikasi WhatsApp + bell.
+- **Bukti Potong** (icon scroll ungu): generate PDF Form 1721-A1 tahunan
+  untuk pegawai tsb (data diambil dari semua payroll tahun yang sama).
+- **Hapus** (icon trash merah): hanya untuk status non-paid.
+
+Payroll dengan status `paid` tidak bisa lagi diubah atau dihapus.
+
+### 9.3 Bulk Add Komponen Payroll
+
+Halaman `Komponen Payroll` punya tombol **Bulk Add** untuk menambahkan satu
+komponen sekaligus ke banyak pegawai. Target bisa:
+
+- Semua pegawai aktif
+- Per divisi
+
+Cocok untuk: tunjangan transport seragam, kasbon kolektif, dll.
+
+### 9.4 Pro-rata Otomatis untuk Join/Resign Tengah Bulan
+
+Calculator sekarang otomatis hitung faktor pro-rata berdasar hari kalender:
+
+- Karyawan join 15 Mei dari 31 hari → faktor = 17/31 ≈ 0.55
+- Karyawan resign 10 Mei dari 31 hari → faktor = 10/31 ≈ 0.32
+- Karyawan resign sebelum bulan tsb → di-skip (tidak digenerate)
+
+Field baru `employees.resignDate` digunakan sebagai signal.
+
+### 9.5 Pengaturan Tambahan
+
+Di halaman **Pengaturan Payroll**:
+
+- **Hari Kerja per Minggu** (5 atau 6) — mempengaruhi rate lembur hari libur
+  (5-day: 8 jam pertama 2x; 6-day: 7 jam pertama 2x sesuai Permenaker 102/2004).
+- **Basis Potongan Telat** (Gaji Pokok / Gaji+Tunjangan) — default Gaji Pokok.
+- **NPWP Perusahaan** + **Alamat Pajak** — muncul di slip gaji PDF dan
+  rekap payroll PDF/Excel.
+
+### 9.6 Slip Gaji Real (No More Fake Synthesize)
+
+Endpoint `/api/payroll/me/export` sekarang return **404** jika payroll periode
+yang diminta belum digenerate (sebelumnya dia synthesize estimasi dari
+baseSalary, yang menyesatkan untuk dokumen pajak).
+
+Slip PDF sekarang menampilkan:
+
+- Nama + NPWP + alamat perusahaan di header
+- Status PTKP + indikator NPWP/non-NPWP
+- Bank + nomor rekening (4 digit terakhir) dari profil pegawai
+- Tanggal pembayaran (jika sudah `paid`)
+- Kontribusi BPJS dari perusahaan (separate dari take home)
+
+### 9.7 Bukti Potong Tahunan (Form 1721-A1)
+
+Endpoint baru: `GET /api/admin/payroll/bukti-potong?employeeId=xxx&year=YYYY`
+
+Hasil PDF berisi:
+
+- Identitas pemberi kerja (nama, NPWP, alamat) — diambil dari payroll-settings
+- Identitas pegawai (nama, NPWP, status PTKP, jabatan)
+- Tabel rincian per bulan: bruto, BPJS, PPh 21, take home
+- Total tahunan
+- Footer attestasi sesuai PMK 168/2023 + UU HPP 7/2021
+
+Bisa diakses dari tombol scroll ungu di tabel payroll admin.
+
+### 9.8 Audit Logging Lengkap
+
+Semua mutasi payroll sekarang ter-log ke `audit_logs`:
+
+- `payroll.generate` — saat generate massal
+- `payroll.approved` / `payroll.paid` / `payroll.cancelled` — saat status
+  berubah
+- `payroll.delete`
+- `payroll.thr.generate`
+- `payroll.settings.update` (key yang berubah dicatat)
+- `payroll.component.create` / `delete` / `bulkCreate`
+- `payroll.buktiPotong.download`
+
+### 9.9 Race Condition & Data Integrity
+
+- UNIQUE constraint `(employee_id, period)` di tabel `payrolls` — mencegah
+  generate ganda saat double-click.
+- `monthEnd` sekarang dihitung pakai `new Date(year, month, 0)` — akurat
+  untuk Februari 28/29 hari.
+- Filter `status === 'active'` saat generate payroll dan THR — pegawai
+  resign/leave tidak ikut digenerate.
+- Skip update payroll yang sudah `approved`/`paid` saat re-generate (tidak
+  menimpa data yang sudah final).
+
+### 9.10 THR Pintar
+
+- `payDate` default sekarang H-7 dari hari raya religious yang ada di tabel
+  `holidays` bulan tsb. Fallback ke tanggal 7 bulan tsb jika tidak ada.
+- Allowance sumber prioritas: component recurring `category=allowance`
+  → fallback `baseSalary × allowanceDefaultPct`.
+- Filter pegawai aktif saja.
+- Audit log otomatis.
+
+---
+
+*Bagian ini diperbarui pada Mei 2026 mengikuti audit modul payroll.*

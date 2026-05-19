@@ -38,6 +38,15 @@ export async function GET(req: NextRequest) {
       payroll = rows[0] ?? null;
     }
 
+    if (!payroll) {
+      return fail(
+        404,
+        period
+          ? `Slip gaji ${period} belum digenerate.`
+          : "Belum ada slip gaji yang digenerate."
+      );
+    }
+
     const [employee] = await db
       .select()
       .from(schema.employees)
@@ -46,37 +55,15 @@ export async function GET(req: NextRequest) {
       .select()
       .from(schema.companies)
       .where(eq(schema.companies.id, session.companyId));
-
-    if (!payroll) {
-      // Synthesize from baseSalary if no payroll yet
-      const base = employee?.baseSalary ?? 0;
-      const allowance = Math.round(base * 0.27);
-      const ot = 0;
-      const bonus = 0;
-      const tax = Math.round(base * 0.04);
-      const bpjs = Math.round(base * 0.04);
-      const ded = 0;
-      payroll = {
-        period:
-          period ||
-          `${new Date().getFullYear()}-${String(
-            new Date().getMonth() + 1
-          ).padStart(2, "0")}`,
-        baseSalary: base,
-        allowance,
-        overtimePay: ot,
-        bonus,
-        attendanceDeduction: ded,
-        taxDeduction: tax,
-        bpjsDeduction: bpjs,
-        thr: 0,
-        netSalary: base + allowance - tax - bpjs,
-        status: "preview",
-      };
-    }
+    const [settings] = await db
+      .select()
+      .from(schema.payrollSettings)
+      .where(eq(schema.payrollSettings.companyId, session.companyId));
 
     const buf = await renderPayslip({
-      company: company?.name ?? "Manggala Attendance System",
+      company: company?.name ?? "Perusahaan",
+      companyNpwp: settings?.companyNpwp ?? null,
+      companyAddress: settings?.companyTaxAddress ?? null,
       employee,
       payroll,
     });
@@ -94,6 +81,8 @@ export async function GET(req: NextRequest) {
 
 function renderPayslip(opts: {
   company: string;
+  companyNpwp: string | null;
+  companyAddress: string | null;
   employee: any;
   payroll: any;
 }): Promise<Buffer> {
@@ -107,41 +96,65 @@ function renderPayslip(opts: {
     doc.on("end", () => resolve(Buffer.concat(chunks)));
     doc.on("error", reject);
 
-    const fmt = (n: number) =>
-      `Rp ${(n ?? 0).toLocaleString("id-ID")}`;
+    const fmt = (n: number) => `Rp ${(n ?? 0).toLocaleString("id-ID")}`;
 
     // Header band
-    doc.rect(0, 0, doc.page.width, 100).fill("#3A5CFF");
+    doc.rect(0, 0, doc.page.width, 110).fill("#3A5CFF");
     doc
       .fillColor("white")
       .font("Helvetica-Bold")
-      .fontSize(22)
-      .text(opts.company, 50, 30);
+      .fontSize(20)
+      .text(opts.company, 50, 28);
+    if (opts.companyNpwp) {
+      doc
+        .font("Helvetica")
+        .fontSize(9)
+        .fillColor("#DAE6FF")
+        .text(`NPWP: ${opts.companyNpwp}`, 50, 52);
+    }
+    if (opts.companyAddress) {
+      doc
+        .font("Helvetica")
+        .fontSize(8)
+        .fillColor("#DAE6FF")
+        .text(opts.companyAddress, 50, opts.companyNpwp ? 64 : 52, {
+          width: doc.page.width - 240,
+        });
+    }
+    doc
+      .font("Helvetica-Bold")
+      .fontSize(11)
+      .fillColor("white")
+      .text("SLIP GAJI KARYAWAN", 50, 86);
     doc
       .font("Helvetica")
-      .fontSize(11)
-      .fillColor("#DAE6FF")
-      .text("SLIP GAJI KARYAWAN", 50, 60);
-    doc
       .fontSize(10)
-      .text(`Periode ${opts.payroll.period}`, 50, 76);
+      .fillColor("#DAE6FF")
+      .text(`Periode ${opts.payroll.period}`, doc.page.width - 200, 30, {
+        width: 150,
+        align: "right",
+      });
+    if (opts.payroll.status) {
+      doc
+        .font("Helvetica-Bold")
+        .fontSize(9)
+        .text(
+          opts.payroll.status.toUpperCase(),
+          doc.page.width - 200,
+          48,
+          { width: 150, align: "right" }
+        );
+    }
 
     doc.fillColor("#0F121B").y = 130;
 
     // Employee info box
     const boxTop = doc.y;
-    doc
-      .roundedRect(50, boxTop, doc.page.width - 100, 90, 12)
-      .fill("#F7F7FB");
+    doc.roundedRect(50, boxTop, doc.page.width - 100, 90, 12).fill("#F7F7FB");
     doc.fillColor("#1B1F2C");
     const left = 65;
     const right = doc.page.width / 2 + 10;
-    const colKv = (
-      x: number,
-      y: number,
-      label: string,
-      value: string
-    ) => {
+    const colKv = (x: number, y: number, label: string, value: string) => {
       doc
         .font("Helvetica")
         .fontSize(8)
@@ -156,7 +169,12 @@ function renderPayslip(opts: {
     colKv(left, boxTop + 12, "Nama", opts.employee?.fullName ?? "-");
     colKv(left, boxTop + 50, "Kode Pegawai", opts.employee?.employeeCode ?? "-");
     colKv(right, boxTop + 12, "Divisi", opts.employee?.division ?? "-");
-    colKv(right, boxTop + 50, "Posisi", opts.employee?.position ?? "-");
+    colKv(
+      right,
+      boxTop + 50,
+      "PTKP / NPWP",
+      `${opts.payroll.ptkpStatus ?? "-"}${opts.employee?.npwp ? " · NPWP" : " · non-NPWP"}`
+    );
 
     doc.y = boxTop + 110;
 
@@ -166,7 +184,6 @@ function renderPayslip(opts: {
     const earnX = 50;
     const dedX = 50 + colW + 20;
 
-    // Earnings
     doc
       .rect(earnX, colTop, colW, 26)
       .fill("#22C55E")
@@ -178,7 +195,10 @@ function renderPayslip(opts: {
     const earnings: [string, number][] = [
       ["Gaji Pokok", opts.payroll.baseSalary || 0],
       ["Tunjangan", opts.payroll.allowance || 0],
-      ["Lembur", opts.payroll.overtimePay || 0],
+      [
+        `Lembur${opts.payroll.overtimeHours ? ` (${opts.payroll.overtimeHours}j)` : ""}`,
+        opts.payroll.overtimePay || 0,
+      ],
       ["Bonus", opts.payroll.bonus || 0],
       ["THR", opts.payroll.thr || 0],
     ].filter(([, v]) => v > 0) as [string, number][];
@@ -192,10 +212,7 @@ function renderPayslip(opts: {
         .fontSize(10)
         .text(k, earnX + 12, ey)
         .font("Helvetica-Bold")
-        .text(fmt(v), earnX + 12, ey, {
-          width: colW - 24,
-          align: "right",
-        });
+        .text(fmt(v), earnX + 12, ey, { width: colW - 24, align: "right" });
       totalEarn += v;
       ey += 22;
     }
@@ -215,7 +232,6 @@ function renderPayslip(opts: {
         align: "right",
       });
 
-    // Deductions
     doc
       .rect(dedX, colTop, colW, 26)
       .fill("#EF4444")
@@ -244,10 +260,7 @@ function renderPayslip(opts: {
         .fontSize(10)
         .text(k, dedX + 12, dy)
         .font("Helvetica-Bold")
-        .text(fmt(v), dedX + 12, dy, {
-          width: colW - 24,
-          align: "right",
-        });
+        .text(fmt(v), dedX + 12, dy, { width: colW - 24, align: "right" });
       totalDed += v;
       dy += 22;
     }
@@ -271,9 +284,7 @@ function renderPayslip(opts: {
 
     // Take home pay big box
     const thpY = doc.y;
-    doc
-      .roundedRect(50, thpY, doc.page.width - 100, 70, 14)
-      .fill("#1B1F2C");
+    doc.roundedRect(50, thpY, doc.page.width - 100, 80, 14).fill("#1B1F2C");
     doc
       .fillColor("#8A93AD")
       .font("Helvetica")
@@ -285,15 +296,53 @@ function renderPayslip(opts: {
       .fontSize(24)
       .text(fmt(opts.payroll.netSalary || 0), 70, thpY + 30);
     if (opts.employee?.bankName) {
+      const last4 = opts.employee.bankAccount
+        ? `****${String(opts.employee.bankAccount).slice(-4)}`
+        : "";
       doc
         .fillColor("#8A93AD")
         .font("Helvetica")
         .fontSize(9)
+        .text(`Transfer ke`, doc.page.width - 220, thpY + 18, {
+          width: 150,
+          align: "right",
+        });
+      doc
+        .fillColor("white")
+        .font("Helvetica-Bold")
+        .fontSize(11)
         .text(
-          `${opts.employee.bankName} ${opts.employee.bankAccount ?? ""}`,
-          doc.page.width - 200,
-          thpY + 30,
-          { width: 130, align: "right" }
+          `${opts.employee.bankName} ${last4}`,
+          doc.page.width - 220,
+          thpY + 32,
+          { width: 150, align: "right" }
+        );
+      if (opts.payroll.paidAt) {
+        doc
+          .fillColor("#8A93AD")
+          .font("Helvetica")
+          .fontSize(8)
+          .text(
+            `Dibayar ${new Date(opts.payroll.paidAt).toLocaleDateString("id-ID")}`,
+            doc.page.width - 220,
+            thpY + 50,
+            { width: 150, align: "right" }
+          );
+      }
+    }
+
+    // Employer share box (BPJS company contribution)
+    if (opts.payroll.employerBpjs > 0) {
+      const empY = thpY + 95;
+      doc
+        .fillColor("#8A93AD")
+        .font("Helvetica")
+        .fontSize(8)
+        .text(
+          `Kontribusi BPJS dari perusahaan: ${fmt(opts.payroll.employerBpjs)} (tidak dipotong dari take home).`,
+          50,
+          empY,
+          { width: doc.page.width - 100, align: "center" }
         );
     }
 
