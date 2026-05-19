@@ -35,6 +35,7 @@ export async function GET(req: NextRequest) {
         fullName: schema.employees.fullName,
         position: schema.employees.position,
         employeeCode: schema.employees.employeeCode,
+        avatarUrl: schema.employees.avatarUrl,
       })
       .from(schema.overtimeRequests)
       .leftJoin(

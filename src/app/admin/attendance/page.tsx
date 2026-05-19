@@ -224,13 +224,22 @@ export default function AttendanceMgmt() {
                     >
                       <td className="px-5 py-3">
                         <div className="flex items-center gap-3">
-                          <div className="grid h-9 w-9 place-items-center rounded-xl bg-brand-100 text-xs font-bold text-brand-700">
-                            {r.fullName
-                              ?.split(" ")
-                              .map((s: string) => s[0])
-                              .slice(0, 2)
-                              .join("")}
-                          </div>
+                          {r.avatarUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={r.avatarUrl}
+                              alt={r.fullName}
+                              className="h-9 w-9 rounded-xl object-cover"
+                            />
+                          ) : (
+                            <div className="grid h-9 w-9 place-items-center rounded-xl bg-brand-100 text-xs font-bold text-brand-700">
+                              {r.fullName
+                                ?.split(" ")
+                                .map((s: string) => s[0])
+                                .slice(0, 2)
+                                .join("")}
+                            </div>
+                          )}
                           <div>
                             <p className="font-semibold">{r.fullName}</p>
                             <p className="text-[11px] text-ink-500">

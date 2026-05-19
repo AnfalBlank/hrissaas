@@ -34,6 +34,7 @@ export async function GET(req: NextRequest) {
         employeeId: schema.employees.id,
         fullName: schema.employees.fullName,
         position: schema.employees.position,
+        avatarUrl: schema.employees.avatarUrl,
       })
       .from(schema.leaves)
       .leftJoin(

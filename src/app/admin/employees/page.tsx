@@ -206,13 +206,22 @@ export default function EmployeesPage() {
                     >
                       <td className="px-5 py-3">
                         <div className="flex items-center gap-3">
-                          <div className="grid h-10 w-10 place-items-center rounded-xl bg-brand-100 font-bold text-brand-700">
-                            {e.fullName
-                              ?.split(" ")
-                              .map((s: string) => s[0])
-                              .slice(0, 2)
-                              .join("")}
-                          </div>
+                          {e.avatarUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={e.avatarUrl}
+                              alt={e.fullName}
+                              className="h-10 w-10 rounded-xl object-cover"
+                            />
+                          ) : (
+                            <div className="grid h-10 w-10 place-items-center rounded-xl bg-brand-100 font-bold text-brand-700 text-sm">
+                              {e.fullName
+                                ?.split(" ")
+                                .map((s: string) => s[0])
+                                .slice(0, 2)
+                                .join("")}
+                            </div>
+                          )}
                           <div>
                             <p className="font-semibold">{e.fullName}</p>
                             <p className="text-[11px] text-ink-500">

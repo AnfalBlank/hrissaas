@@ -123,7 +123,16 @@ export default function LeaveAdmin() {
                 l.status === "rejected" ? "Ditolak" : "Menunggu";
               return (
                 <li key={l.id} className="flex flex-wrap items-center gap-4 p-5">
-                  <Icon3D name="beach" size={48} />
+                  {l.avatarUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={l.avatarUrl}
+                      alt={l.fullName}
+                      className="h-12 w-12 rounded-xl object-cover"
+                    />
+                  ) : (
+                    <Icon3D name="beach" size={48} />
+                  )}
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="font-semibold">{l.fullName}</p>

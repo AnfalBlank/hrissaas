@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
 import { Icon3D, type Icon3DName } from "@/components/Icon3D";
 import { Logo } from "@/components/Logo";
 import { cn } from "@/lib/utils";
+import { api } from "@/lib/api";
 
 const NAV: {
   group: string;
@@ -53,6 +55,33 @@ const NAV: {
 
 export function Sidebar() {
   const pathname = usePathname();
+  const { data: meData } = useQuery({
+    queryKey: ["me"],
+    queryFn: () => api.me(),
+    staleTime: 5 * 60 * 1000, // 5 menit cache
+  });
+
+  const user = meData?.user;
+  const employee = meData?.employee;
+  const avatarUrl = employee?.avatarUrl;
+  const fullName = employee?.fullName ?? user?.email?.split("@")[0] ?? "Admin";
+  const initials = fullName
+    .split(" ")
+    .map((s: string) => s[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+  const roleLabel =
+    user?.role === "super_admin"
+      ? "Super Admin"
+      : user?.role === "owner"
+        ? "Owner"
+        : user?.role === "hr"
+          ? "HR Manager"
+          : user?.role === "supervisor"
+            ? "Supervisor"
+            : "Admin";
+
   return (
     <aside className="hidden w-72 shrink-0 lg:block">
       <div className="sticky top-0 flex h-screen flex-col border-r border-ink-100 bg-white">
@@ -102,12 +131,21 @@ export function Sidebar() {
         </nav>
         <div className="border-t border-ink-100 p-3">
           <div className="flex items-center gap-3 rounded-2xl bg-ink-50 p-3">
-            <div className="grid h-10 w-10 place-items-center rounded-xl bg-brand-600 text-sm font-bold text-white">
-              RH
-            </div>
+            {avatarUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={avatarUrl}
+                alt={fullName}
+                className="h-10 w-10 rounded-xl object-cover"
+              />
+            ) : (
+              <div className="grid h-10 w-10 place-items-center rounded-xl bg-brand-600 text-sm font-bold text-white">
+                {initials}
+              </div>
+            )}
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold">Rina Hartati</p>
-              <p className="truncate text-[10px] text-ink-500">HR Manager</p>
+              <p className="truncate text-sm font-semibold">{fullName}</p>
+              <p className="truncate text-[10px] text-ink-500">{roleLabel}</p>
             </div>
             <Link
               href="/login"
