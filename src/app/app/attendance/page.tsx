@@ -8,15 +8,17 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { PageHeader } from "@/components/employee/PageHeader";
 import { api } from "@/lib/api";
+import { runLivenessDetection, type LivenessResult } from "@/lib/liveness";
 import {
   CheckCircle2,
+  Eye,
   MapPin,
   ScanFace,
   ShieldCheck,
   AlertCircle,
 } from "lucide-react";
 
-type Step = "intro" | "camera" | "scanning" | "success" | "error";
+type Step = "intro" | "camera" | "liveness" | "scanning" | "success" | "error";
 
 export default function AttendancePage() {
   const router = useRouter();
@@ -39,6 +41,10 @@ export default function AttendancePage() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [result, setResult] = useState<any>(null);
   const [selfieDataUrl, setSelfieDataUrl] = useState<string | null>(null);
+  const [livenessResult, setLivenessResult] = useState<LivenessResult | null>(
+    null
+  );
+  const [livenessProgress, setLivenessProgress] = useState(0);
 
   const { data: meData } = useQuery({
     queryKey: ["me"],
@@ -62,9 +68,9 @@ export default function AttendancePage() {
     );
   }, []);
 
-  // Manage camera stream
+  // Manage camera stream for camera + liveness steps
   useEffect(() => {
-    if (step !== "camera") return;
+    if (step !== "camera" && step !== "liveness") return;
     let cancelled = false;
     (async () => {
       try {
@@ -90,51 +96,101 @@ export default function AttendancePage() {
     })();
     return () => {
       cancelled = true;
-      streamRef.current?.getTracks().forEach((t) => t.stop());
-      streamRef.current = null;
+      if (step === "camera") {
+        // Don't stop stream if transitioning to liveness
+      } else {
+        streamRef.current?.getTracks().forEach((t) => t.stop());
+        streamRef.current = null;
+      }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step]);
 
-  // Progress bar during scanning
+  // Liveness detection challenge
   useEffect(() => {
-    if (step !== "scanning") return;
-    setProgress(0);
-    const t = setInterval(() => {
-      setProgress((p) => {
-        const next = Math.min(100, p + 4);
-        if (next >= 100) clearInterval(t);
-        return next;
+    if (step !== "liveness") return;
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas) return;
+
+    let cancelled = false;
+    setLivenessProgress(0);
+
+    (async () => {
+      // Beri sedikit waktu untuk user membaca instruksi
+      await new Promise((r) => setTimeout(r, 800));
+      if (cancelled) return;
+
+      const result = await runLivenessDetection(video, canvas, {
+        durationMs: 3500,
+        onProgress: (pct) => {
+          if (!cancelled) setLivenessProgress(pct);
+        },
       });
-    }, 50);
-    return () => clearInterval(t);
+
+      if (cancelled) return;
+      setLivenessResult(result);
+
+      if (result.passed) {
+        // Liveness passed — capture selfie lalu submit
+        capturePhoto();
+        setStep("scanning");
+      } else {
+        // Gagal — tampilkan error
+        setErrorMsg(
+          result.motionDetected
+            ? "Kedipan mata tidak terdeteksi. Pastikan wajah terlihat jelas dan kedipkan mata."
+            : "Tidak ada gerakan terdeteksi. Pastikan bukan foto atau screenshot."
+        );
+        streamRef.current?.getTracks().forEach((t) => t.stop());
+        streamRef.current = null;
+        setStep("error");
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step]);
 
-  // Submit when scanning hits 100%
+  // Submit when scanning (upload foto + API call)
   useEffect(() => {
-    if (step !== "scanning" || progress < 100 || !coords) return;
+    if (step !== "scanning" || !coords || !selfieDataUrl) return;
     (async () => {
       try {
+        setProgress(0);
+        // Simulate upload progress
+        const progressTimer = setInterval(() => {
+          setProgress((p) => Math.min(90, p + 15));
+        }, 200);
+
         let photoUrl: string | undefined;
-        if (selfieDataUrl) {
-          try {
-            const up = await api.uploadDataUrl(
-              selfieDataUrl,
-              `selfie-${Date.now()}.jpg`,
-              "selfie"
-            );
-            photoUrl = up.url;
-          } catch {}
-        }
+        try {
+          const up = await api.uploadDataUrl(
+            selfieDataUrl,
+            `selfie-${Date.now()}.jpg`,
+            "selfie"
+          );
+          photoUrl = up.url;
+        } catch {}
+
+        clearInterval(progressTimer);
+        setProgress(95);
+
+        const confidence = livenessResult?.confidence ?? 0.7;
         const payload = {
           latitude: coords.coords.latitude,
           longitude: coords.coords.longitude,
           method: "face" as const,
-          confidence: 0.984,
+          confidence,
         };
         const data =
           action === "checkin"
             ? await api.checkIn({ ...payload, photoUrl })
             : await api.checkOut({ ...payload, photoUrl });
+
+        setProgress(100);
         setResult(data);
         setStep("success");
         qc.invalidateQueries({ queryKey: ["attendance-me"] });
@@ -143,9 +199,10 @@ export default function AttendancePage() {
         setStep("error");
       }
     })();
-  }, [step, progress, coords, action, qc, selfieDataUrl]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, coords, selfieDataUrl]);
 
-  function captureAndProceed() {
+  function capturePhoto() {
     const video = videoRef.current;
     const canvas = canvasRef.current;
     if (video && canvas && video.videoWidth) {
@@ -160,8 +217,17 @@ export default function AttendancePage() {
     }
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
-    setStep("scanning");
   }
+
+  function startLiveness() {
+    // Transition dari camera ke liveness (keep stream alive)
+    setLivenessResult(null);
+    setStep("liveness");
+  }
+
+  const confidencePct = livenessResult
+    ? Math.round(livenessResult.confidence * 100)
+    : 0;
 
   return (
     <div className="px-4 pt-4">
@@ -169,8 +235,8 @@ export default function AttendancePage() {
         title="Absensi"
         subtitle={
           action === "checkin"
-            ? "Check-in dengan Face Recognition"
-            : "Check-out"
+            ? "Check-in dengan Liveness Detection"
+            : "Check-out dengan Liveness Detection"
         }
       />
 
@@ -183,7 +249,7 @@ export default function AttendancePage() {
                 <p className="text-xs text-white/80">Siap absen?</p>
                 <p className="font-display text-xl font-extrabold">
                   {action === "checkin"
-                    ? "Selfie & verifikasi"
+                    ? "Selfie & verifikasi hidup"
                     : "Check-out hari ini"}
                 </p>
               </div>
@@ -194,9 +260,7 @@ export default function AttendancePage() {
             <Stat
               icon="satellite"
               title="GPS"
-              value={
-                coords ? "Aktif" : gpsError ? "Error" : "Loading..."
-              }
+              value={coords ? "Aktif" : gpsError ? "Error" : "Loading..."}
               hint={
                 coords
                   ? `±${Math.round(coords.coords.accuracy)}m`
@@ -204,7 +268,13 @@ export default function AttendancePage() {
               }
               ok={!!coords}
             />
-            <Stat icon="shield" title="Liveness" value="Siap" hint="AI Ready" ok />
+            <Stat
+              icon="shield"
+              title="Liveness"
+              value="Challenge"
+              hint="Kedipkan mata"
+              ok
+            />
             <Stat
               icon="bullseye"
               title="Lokasi"
@@ -218,9 +288,9 @@ export default function AttendancePage() {
             />
             <Stat
               icon="warning"
-              title="Mock GPS"
-              value="Aman"
-              hint="tidak terdeteksi"
+              title="Anti-Spoof"
+              value="Frame Diff"
+              hint="Motion + blink"
               ok
             />
           </div>
@@ -259,11 +329,11 @@ export default function AttendancePage() {
           >
             <ScanFace className="h-5 w-5" />
             {action === "checkin"
-              ? "Mulai Face Recognition"
-              : "Konfirmasi Check-out"}
+              ? "Mulai Liveness Check"
+              : "Mulai Check-out"}
           </Button>
           <p className="mt-2 text-center text-[11px] text-ink-500">
-            Pastikan wajah terlihat jelas, tidak menggunakan masker.
+            Anda akan diminta kedipkan mata untuk verifikasi.
           </p>
         </>
       )}
@@ -301,9 +371,62 @@ export default function AttendancePage() {
             <Button variant="secondary" onClick={() => setStep("intro")}>
               Batal
             </Button>
-            <Button onClick={captureAndProceed}>
-              <ScanFace className="h-4 w-4" /> Ambil & Verifikasi
+            <Button onClick={startLiveness}>
+              <Eye className="h-4 w-4" /> Mulai Verifikasi
             </Button>
+          </div>
+        </div>
+      )}
+
+      {step === "liveness" && (
+        <div className="rounded-3xl bg-ink-900 p-4 text-white shadow-card">
+          <div className="relative mx-auto aspect-[3/4] w-full overflow-hidden rounded-2xl bg-ink-800">
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted
+              className="absolute inset-0 h-full w-full object-cover"
+            />
+            <canvas ref={canvasRef} className="hidden" />
+            {/* Scanning overlay */}
+            <div className="pointer-events-none absolute inset-0 grid place-items-center">
+              <div className="relative h-56 w-56">
+                <div className="absolute inset-0 rounded-full border-4 border-dashed border-emerald-400 animate-spin [animation-duration:4s]" />
+                <div className="absolute inset-0 grid place-items-center">
+                  <div className="rounded-2xl bg-black/60 px-4 py-2 text-center backdrop-blur">
+                    <Eye className="mx-auto h-6 w-6 text-emerald-400 animate-pulse" />
+                    <p className="mt-1 text-sm font-bold">Kedipkan Mata</p>
+                    <p className="text-[10px] text-white/70">
+                      Deteksi sedang berjalan...
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="mt-4">
+            <div className="flex items-center justify-between text-xs text-white/80">
+              <span>Liveness Detection</span>
+              <span className="font-mono">{livenessProgress}%</span>
+            </div>
+            <div className="mt-1 h-2 rounded-full bg-white/10">
+              <div
+                className="h-2 rounded-full bg-gradient-to-r from-emerald-400 to-cyan-400 transition-all"
+                style={{ width: `${livenessProgress}%` }}
+              />
+            </div>
+            <ul className="mt-3 space-y-1 text-xs text-white/70">
+              <li className={livenessProgress > 20 ? "text-emerald-400" : ""}>
+                {livenessProgress > 20 ? "✓" : "○"} Mendeteksi gerakan wajah...
+              </li>
+              <li className={livenessProgress > 50 ? "text-emerald-400" : ""}>
+                {livenessProgress > 50 ? "✓" : "○"} Mendeteksi kedipan mata...
+              </li>
+              <li className={livenessProgress > 80 ? "text-emerald-400" : ""}>
+                {livenessProgress > 80 ? "✓" : "○"} Analisis anti-spoof...
+              </li>
+            </ul>
           </div>
         </div>
       )}
@@ -323,18 +446,13 @@ export default function AttendancePage() {
                 <Icon3D name="face" size={120} className="animate-pulseSoft" />
               </div>
             )}
-            <div className="absolute inset-0 grid place-items-center">
-              <div className="relative h-56 w-56">
-                <div className="absolute inset-0 rounded-full border-4 border-dashed border-brand-300 animate-spin [animation-duration:8s]" />
-              </div>
-            </div>
             <div className="absolute inset-x-0 bottom-3 mx-auto w-fit rounded-full bg-black/50 px-3 py-1 text-xs">
-              Mendeteksi wajah & liveness...
+              Mengirim data absensi...
             </div>
           </div>
           <div className="mt-4">
             <div className="flex items-center justify-between text-xs text-white/80">
-              <span>Progress</span>
+              <span>Upload & Submit</span>
               <span className="font-mono">{progress}%</span>
             </div>
             <div className="mt-1 h-2 rounded-full bg-white/10">
@@ -344,9 +462,13 @@ export default function AttendancePage() {
               />
             </div>
             <ul className="mt-3 space-y-1 text-xs text-white/70">
-              <li>✓ Multiple face check</li>
-              <li>✓ Anti spoof detection</li>
-              <li>✓ Confidence score: 98.4%</li>
+              <li className="text-emerald-400">✓ Liveness passed ({confidencePct}%)</li>
+              <li className={progress > 30 ? "text-emerald-400" : ""}>
+                {progress > 30 ? "✓" : "○"} Upload foto selfie
+              </li>
+              <li className={progress > 80 ? "text-emerald-400" : ""}>
+                {progress > 80 ? "✓" : "○"} Verifikasi GPS & submit
+              </li>
             </ul>
           </div>
         </div>
@@ -364,7 +486,7 @@ export default function AttendancePage() {
             {action === "checkin" ? "Check-in" : "Check-out"} Berhasil!
           </h2>
           <p className="mt-1 text-sm text-ink-600">
-            Wajah terverifikasi dengan confidence 98.4%
+            Liveness verified · Confidence {confidencePct}%
           </p>
 
           <div className="mt-5 grid grid-cols-2 gap-3 text-left">
@@ -392,6 +514,30 @@ export default function AttendancePage() {
             </div>
           </div>
 
+          {livenessResult && (
+            <div className="mt-3 rounded-2xl bg-ink-50 p-3 text-left text-xs border border-ink-100">
+              <p className="font-semibold text-ink-700">Detail Verifikasi</p>
+              <div className="mt-1 grid grid-cols-3 gap-2">
+                <div>
+                  <p className="text-ink-400">Motion</p>
+                  <p className={livenessResult.motionDetected ? "text-emerald-600 font-bold" : "text-danger-600 font-bold"}>
+                    {livenessResult.motionDetected ? "✓ Detected" : "✗ None"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-ink-400">Blink</p>
+                  <p className={livenessResult.blinkDetected ? "text-emerald-600 font-bold" : "text-danger-600 font-bold"}>
+                    {livenessResult.blinkDetected ? "✓ Detected" : "✗ None"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-ink-400">Score</p>
+                  <p className="font-bold text-brand-700">{confidencePct}%</p>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="mt-5 grid grid-cols-2 gap-2">
             <Button
               variant="secondary"
@@ -412,14 +558,25 @@ export default function AttendancePage() {
             <AlertCircle className="h-12 w-12" />
           </div>
           <h2 className="mt-4 font-display text-2xl font-extrabold">
-            Absen Gagal
+            {errorMsg?.includes("kedipan") || errorMsg?.includes("gerakan")
+              ? "Verifikasi Gagal"
+              : "Absen Gagal"}
           </h2>
           <p className="mt-1 text-sm text-ink-600">{errorMsg}</p>
           <div className="mt-5 grid grid-cols-2 gap-2">
             <Button variant="secondary" onClick={() => router.push("/app")}>
               Batal
             </Button>
-            <Button onClick={() => setStep("intro")}>Coba Lagi</Button>
+            <Button
+              onClick={() => {
+                setLivenessResult(null);
+                setSelfieDataUrl(null);
+                setErrorMsg(null);
+                setStep("intro");
+              }}
+            >
+              Coba Lagi
+            </Button>
           </div>
         </div>
       )}
