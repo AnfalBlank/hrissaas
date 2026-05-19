@@ -32,6 +32,7 @@ export async function GET(req: NextRequest) {
         checkOutLat: schema.attendances.checkOutLat,
         checkOutLng: schema.attendances.checkOutLng,
         checkOutPhotoUrl: schema.attendances.checkOutPhotoUrl,
+        checkOutMethod: schema.attendances.checkOutMethod,
         lateMinutes: schema.attendances.lateMinutes,
         overtimeMinutes: schema.attendances.overtimeMinutes,
         notes: schema.attendances.notes,
