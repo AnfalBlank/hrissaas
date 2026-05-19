@@ -105,7 +105,8 @@ export default function PayrollPage() {
       },
     ].filter((s) => Math.abs(s.value) > 0);
     return items;
-  }, [c, totalDed]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [c.baseSalary, c.allowance, c.overtimePay, c.bonus, c.thr, totalDed]);
 
   return (
     <div className="px-4 pt-4">
