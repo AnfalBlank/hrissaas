@@ -15,6 +15,13 @@
       "when": 1779154779382,
       "tag": "0001_wooden_stardust",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1779156266334,
+      "tag": "0002_spooky_stark_industries",
+      "breakpoints": true
     }
   ]
 }

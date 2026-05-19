@@ -252,6 +252,8 @@ export const api = {
     }),
   adminPayrollDelete: (id: string) =>
     request(`/api/admin/payroll/${id}`, { method: "DELETE" }),
+  adminPayrollRevisions: (id: string) =>
+    request<{ items: any[] }>(`/api/admin/payroll/${id}/revisions`),
   adminBuktiPotongUrl: (employeeId: string, year: number) =>
     `/api/admin/payroll/bukti-potong?employeeId=${employeeId}&year=${year}`,
   adminPayrollComponentBulk: (data: {

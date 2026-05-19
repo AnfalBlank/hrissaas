@@ -1777,3 +1777,80 @@ Semua mutasi payroll sekarang ter-log ke `audit_logs`:
 ---
 
 *Bagian ini diperbarui pada Mei 2026 mengikuti audit modul payroll.*
+
+
+---
+
+## 10. Modul Payroll v2.1 — Polishing (Mei 2026 - lanjutan)
+
+### 10.1 Transaction Wrap di Generate
+
+Setiap upsert payroll di endpoint `POST /api/admin/payroll` sekarang
+dijalankan dalam `db.transaction()`. Jika ada gangguan jaringan ke Turso saat
+update sebagian, transaksi akan rollback dan tidak meninggalkan data parsial.
+
+### 10.2 Tabel `payroll_revisions` — Audit Histori Lengkap
+
+Schema baru `payroll_revisions`:
+
+| Field | Tipe | Catatan |
+|---|---|---|
+| `payrollId` | text | FK ke `payrolls`, cascade delete |
+| `companyId` | text | tenant scoping |
+| `revisedById` | text | userId yang melakukan |
+| `action` | text | create / update / approve / paid / cancel / delete |
+| `snapshot` | text (JSON) | full row payroll **sebelum** perubahan |
+| `diff` | text (JSON) | `{field: {old, new}}` — hanya field yang berubah |
+| `notes` | text | konteks tambahan |
+| `createdAt` | integer | timestamp |
+
+Setiap mutasi (generate baru, re-generate, approve, paid, cancel, delete)
+otomatis di-log via helper `logRevision()`.
+
+### 10.3 UI History Revisi
+
+Di tabel admin payroll, tombol **History** (icon clock amber) per baris
+membuka modal yang menampilkan timeline revisi:
+
+- Action badge (CREATE / APPROVE / PAID / DELETE / dll)
+- Tanggal & email pelaku revisi
+- Notes (kalau ada)
+- Tabel diff field-level: nama field, value sebelum (merah, coret), value
+  sesudah (hijau)
+
+Berguna untuk audit pajak, dispute pegawai, atau debugging.
+
+### 10.4 Slip Employee — Visualisasi & Edukasi
+
+Halaman `/app/payroll` di sisi karyawan sekarang menampilkan:
+
+#### Donut Chart Komposisi Gaji
+SVG donut menunjukkan proporsi gaji pokok, tunjangan, lembur, bonus+THR,
+dan potongan. Total bruto kompak ditampilkan di tengah (mis. "Rp 12.5 jt").
+Legenda ke kanan dengan warna + nilai per komponen.
+
+#### Tooltip Edukasi PPh 21
+Tombol "Edukasi PPh 21" di header section Potongan membuka bottom sheet:
+- Penjelasan TER PMK 168/2023 (kategori A/B/C berdasarkan PTKP).
+- Cara hitung: tarif TER × bruto bulanan untuk Jan–Nov.
+- Rekonsiliasi tahunan di Desember.
+- Tarif +20% tanpa NPWP.
+- Tip: lengkapi NPWP di profil.
+
+#### Card Kontribusi Perusahaan (Employer BPJS)
+Card gradient violet menampilkan total `employerBpjs` dari payroll, dengan
+penjelasan bahwa **tidak dipotong dari take home**, tapi dialokasikan untuk
+perlindungan jangka panjang (Kesehatan, JHT, JP, JKK, JKM dari sisi
+perusahaan).
+
+Tombol info di pojok membuka bottom sheet edukasi BPJS dengan tabel rate
+karyawan vs perusahaan untuk masing-masing program, plus dasar hukum
+(Perpres 64/2020, PP 44/2015, PP 45/2015, PP 46/2015).
+
+### 10.5 SDK Tambahan
+
+```ts
+api.adminPayrollRevisions(payrollId)
+// → GET /api/admin/payroll/[id]/revisions
+// returns { items: PayrollRevision[] }
+```

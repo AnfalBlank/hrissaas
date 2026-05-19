@@ -15,6 +15,7 @@ import {
   CheckCircle,
   FileSpreadsheet,
   FileText,
+  History,
   Play,
   Trash2,
   Wallet,
@@ -68,6 +69,7 @@ export default function PayrollAdmin() {
 
   const [exporting, setExporting] = useState<"" | "pdf" | "xlsx">("");
   const [paymentTarget, setPaymentTarget] = useState<any | null>(null);
+  const [historyTarget, setHistoryTarget] = useState<any | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
   async function handleExport(format: "pdf" | "xlsx") {
@@ -262,6 +264,13 @@ export default function PayrollAdmin() {
                           >
                             <ScrollText className="h-4 w-4" />
                           </button>
+                          <button
+                            onClick={() => setHistoryTarget(r)}
+                            className="rounded-lg p-1.5 text-amber-600 hover:bg-amber-50"
+                            title="History revisi"
+                          >
+                            <History className="h-4 w-4" />
+                          </button>
                           {r.status !== "paid" && (
                             <button
                               onClick={() => setDeleteId(r.id)}
@@ -290,6 +299,12 @@ export default function PayrollAdmin() {
             update.mutate({ id: paymentTarget.id, data: { ...data, status: "paid" } });
             setPaymentTarget(null);
           }}
+        />
+      )}
+      {historyTarget && (
+        <HistoryModal
+          payroll={historyTarget}
+          onClose={() => setHistoryTarget(null)}
         />
       )}
       <ConfirmDialog
@@ -393,4 +408,105 @@ function PaymentModal({
       </form>
     </Modal>
   );
+}
+
+
+function HistoryModal({
+  payroll,
+  onClose,
+}: {
+  payroll: any;
+  onClose: () => void;
+}) {
+  const { data, isLoading } = useQuery({
+    queryKey: ["payroll-revisions", payroll.id],
+    queryFn: () => api.adminPayrollRevisions(payroll.id),
+  });
+
+  const items = data?.items ?? [];
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={`History Revisi — ${payroll.fullName} (${payroll.period})`}
+      size="lg"
+    >
+      <div className="max-h-[70vh] space-y-3 overflow-y-auto p-5">
+        {isLoading && (
+          <p className="text-center text-sm text-ink-500">Memuat...</p>
+        )}
+        {!isLoading && items.length === 0 && (
+          <p className="rounded-2xl bg-ink-50 p-4 text-center text-sm text-ink-500">
+            Belum ada history revisi.
+          </p>
+        )}
+        {items.map((rev: any) => (
+          <div
+            key={rev.id}
+            className="rounded-2xl border border-ink-100 bg-white p-4 shadow-soft"
+          >
+            <div className="flex items-center justify-between">
+              <Badge
+                variant={
+                  rev.action === "create"
+                    ? "brand"
+                    : rev.action === "approve"
+                      ? "success"
+                      : rev.action === "paid"
+                        ? "success"
+                        : rev.action === "delete" || rev.action === "cancel"
+                          ? "danger"
+                          : "warning"
+                }
+              >
+                {rev.action.toUpperCase()}
+              </Badge>
+              <div className="text-right text-[11px] text-ink-500">
+                <p>{new Date(rev.createdAt).toLocaleString("id-ID")}</p>
+                <p>{rev.revisedByEmail ?? "system"}</p>
+              </div>
+            </div>
+            {rev.notes && (
+              <p className="mt-2 text-xs text-ink-600 italic">
+                &ldquo;{rev.notes}&rdquo;
+              </p>
+            )}
+            {rev.diff && Object.keys(rev.diff).length > 0 && (
+              <div className="mt-3 overflow-x-auto rounded-xl bg-ink-50 p-3">
+                <table className="text-xs">
+                  <thead>
+                    <tr className="text-ink-500">
+                      <th className="pr-4 text-left">Field</th>
+                      <th className="pr-4 text-left">Sebelum</th>
+                      <th className="text-left">Sesudah</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Object.entries(rev.diff).map(([k, v]: any) => (
+                      <tr key={k}>
+                        <td className="pr-4 font-mono">{k}</td>
+                        <td className="pr-4 text-danger-600 line-through">
+                          {formatVal(v.old)}
+                        </td>
+                        <td className="text-emerald-700">{formatVal(v.new)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </Modal>
+  );
+}
+
+function formatVal(v: any): string {
+  if (v === null || v === undefined) return "—";
+  if (typeof v === "boolean") return v ? "true" : "false";
+  if (typeof v === "number") return v.toLocaleString("id-ID");
+  if (typeof v === "object") return JSON.stringify(v);
+  return String(v);
 }

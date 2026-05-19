@@ -7,6 +7,7 @@ import { eq } from "drizzle-orm";
 import { db, schema } from "@/server/db/client";
 import { requireRole } from "@/server/auth/session";
 import { audit } from "@/server/auth/audit";
+import { logRevision, calcDiff } from "@/server/payroll/revisions";
 import { ok, fail, handleError } from "@/server/api/respond";
 import { notify } from "@/server/notifications/dispatch";
 
@@ -87,6 +88,25 @@ export async function PATCH(
       .where(eq(schema.payrolls.id, params.id))
       .returning();
 
+    // Log revision dengan snapshot+diff (best-effort)
+    const action: "approve" | "paid" | "cancel" | "update" =
+      body.status === "approved"
+        ? "approve"
+        : body.status === "paid"
+          ? "paid"
+          : body.status === "cancelled"
+            ? "cancel"
+            : "update";
+    logRevision({
+      payrollId: params.id,
+      companyId: session.companyId,
+      revisedById: session.sub,
+      action,
+      snapshot: existing,
+      diff: calcDiff(existing, updated),
+      notes: body.notes,
+    }).catch(() => {});
+
     await audit({
       companyId: session.companyId,
       userId: session.sub,
@@ -139,6 +159,16 @@ export async function DELETE(
       return fail(404, "Payroll tidak ditemukan");
     if (existing.status === "paid")
       return fail(400, "Payroll yang sudah dibayar tidak bisa dihapus");
+
+    // Log dulu sebelum delete (FK cascade akan hapus revisions juga, jadi simpan di audit log)
+    logRevision({
+      payrollId: params.id,
+      companyId: session.companyId,
+      revisedById: session.sub,
+      action: "delete",
+      snapshot: existing,
+      notes: "Payroll dihapus",
+    }).catch(() => {});
 
     await db
       .delete(schema.payrolls)

@@ -9,6 +9,7 @@ import { requireRole } from "@/server/auth/session";
 import { audit } from "@/server/auth/audit";
 import { ok, handleError } from "@/server/api/respond";
 import { notify } from "@/server/notifications/dispatch";
+import { logRevision } from "@/server/payroll/revisions";
 import {
   calculatePayroll,
   prorataFactor,
@@ -384,23 +385,51 @@ export async function POST(req: NextRequest) {
       if (existing.length > 0) {
         // Hanya update jika status masih draft (jangan timpa yang sudah approved/paid)
         if (existing[0].status === "draft") {
-          await db
-            .update(schema.payrolls)
-            .set(payrollData)
-            .where(eq(schema.payrolls.id, existing[0].id));
+          await db.transaction(async (tx) => {
+            await tx
+              .update(schema.payrolls)
+              .set(payrollData)
+              .where(eq(schema.payrolls.id, existing[0].id));
+          });
           updated++;
+          // Log revision (best-effort, di luar transaction)
+          logRevision({
+            payrollId: existing[0].id,
+            companyId: session.companyId,
+            revisedById: session.sub,
+            action: "update",
+            snapshot: existing[0],
+            notes: `Re-generate payroll ${period}`,
+          }).catch(() => {});
         } else {
           skipped++;
           continue;
         }
       } else {
-        await db.insert(schema.payrolls).values({
-          ...payrollData,
-          employeeId: e.id,
-          companyId: session.companyId,
-          period,
+        let newId = "";
+        await db.transaction(async (tx) => {
+          const [inserted] = await tx
+            .insert(schema.payrolls)
+            .values({
+              ...payrollData,
+              employeeId: e.id,
+              companyId: session.companyId,
+              period,
+            })
+            .returning();
+          newId = inserted.id;
         });
         created++;
+        if (newId) {
+          logRevision({
+            payrollId: newId,
+            companyId: session.companyId,
+            revisedById: session.sub,
+            action: "create",
+            snapshot: { ...payrollData, employeeId: e.id, period },
+            notes: `Generate payroll ${period}`,
+          }).catch(() => {});
+        }
       }
       if (e.userId) notifyTargets.push({ userId: e.userId, net: calc.netSalary });
     }

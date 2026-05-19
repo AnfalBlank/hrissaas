@@ -246,6 +246,29 @@ export const payrolls = sqliteTable(
   })
 );
 
+/* ---------------- payroll_revisions ---------------- */
+export const payrollRevisions = sqliteTable(
+  "payroll_revisions",
+  {
+    id: id(),
+    payrollId: text("payroll_id")
+      .notNull()
+      .references(() => payrolls.id, { onDelete: "cascade" }),
+    companyId: text("company_id")
+      .notNull()
+      .references(() => companies.id, { onDelete: "cascade" }),
+    revisedById: text("revised_by_id"),
+    action: text("action").notNull(), // create|update|approve|paid|cancel|delete
+    snapshot: text("snapshot").notNull(), // JSON full row sebelum perubahan
+    diff: text("diff"), // JSON {field: {old, new}}
+    notes: text("notes"),
+    createdAt: ts("created_at"),
+  },
+  (t) => ({
+    payrollIdx: index("rev_payroll_idx").on(t.payrollId),
+  })
+);
+
 /* ---------------- notifications ---------------- */
 export const notifications = sqliteTable("notifications", {
   id: id(),
@@ -491,6 +514,7 @@ export type OvertimeRequest = typeof overtimeRequests.$inferSelect;
 export type PayrollSettings = typeof payrollSettings.$inferSelect;
 export type Holiday = typeof holidays.$inferSelect;
 export type PayrollComponent = typeof payrollComponents.$inferSelect;
+export type PayrollRevision = typeof payrollRevisions.$inferSelect;
 export type ChatConversation = typeof chatConversations.$inferSelect;
 export type ChatMessage = typeof chatMessages.$inferSelect;
 export type ChatParticipant = typeof chatParticipants.$inferSelect;
