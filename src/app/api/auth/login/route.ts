@@ -13,6 +13,7 @@ import {
   checkRateLimit,
   recordFailedAttempt,
   resetAttempts,
+  hydrateFromRedis,
 } from "@/server/auth/rate-limit";
 import { ok, fail, handleError } from "@/server/api/respond";
 
@@ -29,6 +30,7 @@ export async function POST(req: NextRequest) {
       req.headers.get("x-real-ip") ||
       "unknown";
     const rateKey = `login:${ip}:${body.email.toLowerCase()}`;
+    await hydrateFromRedis(rateKey);
     const rl = checkRateLimit(rateKey);
     if (!rl.allowed) {
       audit({

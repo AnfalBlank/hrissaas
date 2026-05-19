@@ -463,7 +463,7 @@ export const payrollComponents = sqliteTable("payroll_components", {
 /* ---------------- audit logs ---------------- */
 export const auditLogs = sqliteTable("audit_logs", {
   id: id(),
-  companyId: text("company_id"),
+  companyId: text("company_id").default("system"),
   userId: text("user_id"),
   action: text("action").notNull(),
   details: text("details"),

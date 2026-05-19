@@ -709,9 +709,24 @@ function BulkImportModal({ onClose }: { onClose: () => void }) {
   function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
     if (!f) return;
-    const reader = new FileReader();
-    reader.onload = () => setCsvText(String(reader.result ?? ""));
-    reader.readAsText(f);
+    if (f.name.endsWith(".xlsx") || f.name.endsWith(".xls")) {
+      // Parse xlsx client-side via simple row extraction
+      const reader = new FileReader();
+      reader.onload = async () => {
+        try {
+          const { parseXlsx } = await import("@/lib/xlsx-parser");
+          const text = await parseXlsx(reader.result as ArrayBuffer);
+          setCsvText(text);
+        } catch (err: any) {
+          setError("Gagal parse Excel: " + (err.message ?? "format tidak valid"));
+        }
+      };
+      reader.readAsArrayBuffer(f);
+    } else {
+      const reader = new FileReader();
+      reader.onload = () => setCsvText(String(reader.result ?? ""));
+      reader.readAsText(f);
+    }
   }
 
   return (
@@ -768,10 +783,10 @@ function BulkImportModal({ onClose }: { onClose: () => void }) {
             )}
 
             <div>
-              <label className="label">Upload CSV</label>
+              <label className="label">Upload CSV / Excel (.xlsx)</label>
               <input
                 type="file"
-                accept=".csv,text/csv"
+                accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 onChange={handleFile}
                 className="block w-full rounded-2xl border border-ink-200 p-2 text-sm"
               />

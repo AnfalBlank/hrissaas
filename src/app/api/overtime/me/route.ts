@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest } from "next/server";
 import { z } from "zod";
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, ne } from "drizzle-orm";
 import { db, schema } from "@/server/db/client";
 import { requireSession } from "@/server/auth/session";
 import { ok, fail, handleError } from "@/server/api/respond";
@@ -68,6 +68,24 @@ export async function POST(req: NextRequest) {
     if (hours < 1) return fail(400, "Durasi lembur minimal 1 jam");
     if (hours > 14)
       return fail(400, "Durasi lembur maksimal 14 jam dalam satu pengajuan");
+
+    // Cek overlap: tidak boleh ada OT pending/approved di tanggal yang sama
+    const existing = await db
+      .select()
+      .from(schema.overtimeRequests)
+      .where(
+        and(
+          eq(schema.overtimeRequests.employeeId, session.employeeId),
+          eq(schema.overtimeRequests.date, body.date),
+          ne(schema.overtimeRequests.status, "rejected")
+        )
+      );
+    if (existing.length > 0) {
+      return fail(
+        400,
+        `Sudah ada pengajuan lembur di tanggal ${body.date} (status: ${existing[0].status}, ${existing[0].startTime}-${existing[0].endTime}).`
+      );
+    }
 
     const [employee] = await db
       .select()

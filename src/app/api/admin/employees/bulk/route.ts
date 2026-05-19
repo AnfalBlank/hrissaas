@@ -35,6 +35,8 @@ const RowSchema = z.object({
 const Body = z.object({
   rows: z.array(z.record(z.string(), z.any())).min(1).max(500),
   defaultPassword: z.string().min(6).default("demo1234"),
+  // Format: "csv" (default, rows sudah parsed di client) atau "xlsx" (rows dari client xlsx parser)
+  format: z.enum(["csv", "xlsx"]).default("csv"),
 });
 
 /**

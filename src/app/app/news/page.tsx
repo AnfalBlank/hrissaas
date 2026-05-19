@@ -29,7 +29,9 @@ export default function NewsPage() {
     queryFn: () => api.announcements(),
   });
 
-  const items = (data?.items ?? []).filter(
+  const all = (data?.items ?? []).filter((i: any) => i.status === "live");
+  const banners = all.filter((i: any) => i.type === "banner");
+  const items = all.filter(
     (i: any) => filter === "Semua" || i.type === filter
   );
 
@@ -52,6 +54,39 @@ export default function NewsPage() {
           </button>
         ))}
       </div>
+
+      {/* Banner carousel */}
+      {banners.length > 0 && filter === "Semua" && (
+        <div className="mt-3 flex gap-3 overflow-x-auto pb-2 no-scrollbar snap-x snap-mandatory">
+          {banners.map((b: any) => (
+            <div
+              key={b.id}
+              className="relative min-w-[85%] snap-center overflow-hidden rounded-3xl bg-gradient-to-br from-rose-500 via-pink-500 to-violet-600 p-5 text-white shadow-card"
+            >
+              <div className="absolute -right-8 -top-8 h-32 w-32 rounded-full bg-white/10 blur-2xl" />
+              {b.imageUrl && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={b.imageUrl}
+                  alt=""
+                  className="absolute inset-0 h-full w-full object-cover opacity-20"
+                />
+              )}
+              <div className="relative">
+                <span className="rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-bold">
+                  {b.category ?? "Banner"}
+                </span>
+                <p className="mt-2 font-display text-lg font-extrabold leading-tight">
+                  {b.title}
+                </p>
+                {b.excerpt && (
+                  <p className="mt-1 text-xs text-white/80">{b.excerpt}</p>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="mt-3 space-y-3">
         {items.length === 0 && (
