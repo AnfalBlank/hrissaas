@@ -182,6 +182,20 @@ export function PointMap({
   branchName?: string;
   pointTitle?: string;
 }) {
+  // Guard: pastikan lat/lng valid number
+  if (
+    typeof lat !== "number" ||
+    typeof lng !== "number" ||
+    isNaN(lat) ||
+    isNaN(lng)
+  ) {
+    return (
+      <div className="grid h-full w-full place-items-center bg-ink-100 text-xs text-ink-500">
+        Koordinat tidak valid
+      </div>
+    );
+  }
+
   return (
     <MapContainer
       center={[lat, lng]}
@@ -194,29 +208,32 @@ export function PointMap({
         attribution='&copy; OpenStreetMap'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
-      {branchLat != null && branchLng != null && (
-        <>
-          <Circle
-            center={[branchLat, branchLng]}
-            radius={branchRadius ?? 100}
-            pathOptions={{
-              color: "#3a5cff",
-              fillColor: "#3a5cff",
-              fillOpacity: 0.12,
-              weight: 2,
-            }}
-          />
-          <Marker position={[branchLat, branchLng]} icon={branchIcon}>
-            <Popup>
-              <strong>{branchName ?? "Cabang"}</strong>
-              <br />
-              radius {branchRadius ?? 100}m
-            </Popup>
-          </Marker>
-        </>
-      )}
+      {typeof branchLat === "number" &&
+        typeof branchLng === "number" &&
+        !isNaN(branchLat) &&
+        !isNaN(branchLng) && (
+          <>
+            <Circle
+              center={[branchLat, branchLng]}
+              radius={branchRadius ?? 100}
+              pathOptions={{
+                color: "#3a5cff",
+                fillColor: "#3a5cff",
+                fillOpacity: 0.12,
+                weight: 2,
+              }}
+            />
+            <Marker position={[branchLat, branchLng]} icon={branchIcon}>
+              <Popup>
+                <strong>{branchName ?? "Cabang"}</strong>
+                <br />
+                radius {branchRadius ?? 100}m
+              </Popup>
+            </Marker>
+          </>
+        )}
       <Marker position={[lat, lng]} icon={pinIcon}>
-        <Popup>{pointTitle ?? "Lokasi check-in"}</Popup>
+        <Popup>{pointTitle ?? "Lokasi"}</Popup>
       </Marker>
     </MapContainer>
   );

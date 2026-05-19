@@ -145,6 +145,7 @@ export function AttendanceDetail({
               <div className="relative aspect-[4/3] w-full overflow-hidden rounded-lg bg-ink-100">
                 {hasCheckInGps ? (
                   <PointMap
+                    key={`in-${attendance.id}`}
                     lat={attendance.checkInLat}
                     lng={attendance.checkInLng}
                     branchLat={hasBranch ? attendance.branchLatitude : undefined}
@@ -245,6 +246,7 @@ export function AttendanceDetail({
                   <div className="relative aspect-[4/3] w-full overflow-hidden rounded-lg bg-ink-100">
                     {hasCheckOutGps ? (
                       <PointMap
+                        key={`out-${attendance.id}`}
                         lat={attendance.checkOutLat}
                         lng={attendance.checkOutLng}
                         branchLat={hasBranch ? attendance.branchLatitude : undefined}
