@@ -22,6 +22,13 @@
       "when": 1779156266334,
       "tag": "0002_spooky_stark_industries",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1779171198217,
+      "tag": "0003_condemned_ultimo",
+      "breakpoints": true
     }
   ]
 }

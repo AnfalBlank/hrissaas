@@ -8,12 +8,15 @@ import { db, schema } from "@/server/db/client";
 import { requireSession } from "@/server/auth/session";
 import { ok, fail, handleError } from "@/server/api/respond";
 import { haversine, todayLocalDate, minutesSinceTarget } from "@/server/lib/geo";
-import { broadcastFeed } from "@/server/notifications/dispatch";
+import { broadcastFeed, notify } from "@/server/notifications/dispatch";
+import { uploadDataUrl } from "@/server/storage/r2";
 
 const Body = z.object({
   latitude: z.number(),
   longitude: z.number(),
   method: z.enum(["face", "qr", "manual"]).default("face"),
+  photoUrl: z.string().optional(),
+  photoDataUrl: z.string().optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -41,7 +44,10 @@ export async function POST(req: NextRequest) {
           branch.longitude
         );
         if (distance > (branch.radiusMeters ?? 100)) {
-          return fail(400, `Di luar radius kantor (${Math.round(distance)}m)`);
+          return fail(
+            400,
+            `Anda berada ${Math.round(distance)}m dari kantor "${branch.name}" (radius ${branch.radiusMeters ?? 100}m).`
+          );
         }
       }
     }
@@ -73,13 +79,29 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Upload selfie check-out
+    let photoUrl = body.photoUrl;
+    if (body.photoDataUrl) {
+      try {
+        const uploaded = await uploadDataUrl({
+          key: `${session.companyId}/selfie/${employee.id}/${date}-out.jpg`,
+          dataUrl: body.photoDataUrl,
+        });
+        photoUrl = uploaded.url;
+      } catch (err) {
+        console.warn("[check-out] photo upload failed", err);
+      }
+    }
+
+    const checkOutTime = new Date();
     const [row] = await db
       .update(schema.attendances)
       .set({
-        checkOutAt: new Date(),
+        checkOutAt: checkOutTime,
         checkOutLat: body.latitude,
         checkOutLng: body.longitude,
         checkOutMethod: body.method,
+        checkOutPhotoUrl: photoUrl,
         overtimeMinutes,
       })
       .where(eq(schema.attendances.id, existing.id))
@@ -96,7 +118,26 @@ export async function POST(req: NextRequest) {
       overtimeMinutes,
     });
 
-    return ok({ attendance: row, overtimeMinutes });
+    // Hitung total jam kerja hari ini
+    if (existing.checkInAt) {
+      const ms = checkOutTime.getTime() - existing.checkInAt.getTime();
+      const totalMinutes = Math.round(ms / 60_000);
+      const hours = Math.floor(totalMinutes / 60);
+      const mins = totalMinutes % 60;
+      const summary = `${hours}j ${mins}m${overtimeMinutes > 0 ? ` (lembur ${Math.round(overtimeMinutes / 60 * 10) / 10}j)` : ""}`;
+
+      notify({
+        userId: session.sub,
+        companyId: employee.companyId,
+        title: "Check-out berhasil",
+        body: `Total jam kerja hari ini: ${summary}. Selamat istirahat!`,
+        category: "attendance",
+        icon: "check",
+        link: "/app/history",
+      }).catch(() => {});
+    }
+
+    return ok({ attendance: row, overtimeMinutes, photoUrl });
   } catch (e) {
     return handleError(e);
   }

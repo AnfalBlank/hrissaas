@@ -1,10 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { TopBar } from "@/components/admin/TopBar";
 import { Icon3D, type Icon3DName } from "@/components/Icon3D";
 import { Badge } from "@/components/ui/Badge";
 import { api } from "@/lib/api";
+import { ChevronLeft, ChevronRight, Search } from "lucide-react";
 
 const TOGGLES: { l: string; d: string; v: boolean; i: Icon3DName }[] = [
   { l: "Validasi GPS Wajib", d: "Geofence per branch (haversine)", v: true, i: "satellite" },
@@ -118,13 +120,25 @@ function timeAgo(date: any) {
 }
 
 export default function SecurityPage() {
+  const [page, setPage] = useState(1);
+  const [actionFilter, setActionFilter] = useState("");
+  const [userFilter, setUserFilter] = useState("");
+
   const { data } = useQuery({
-    queryKey: ["audit-logs"],
-    queryFn: () => api.adminAuditLogs(),
+    queryKey: ["audit-logs", page, actionFilter, userFilter],
+    queryFn: () =>
+      api.adminAuditLogs({
+        page,
+        limit: 25,
+        action: actionFilter || undefined,
+        user: userFilter || undefined,
+      }),
     refetchInterval: 30_000,
   });
 
   const logs = data?.items ?? [];
+  const pagination = data?.pagination;
+  const distinctActions = data?.actions ?? [];
 
   return (
     <>
@@ -171,13 +185,45 @@ export default function SecurityPage() {
           <div className="rounded-3xl bg-white p-5 shadow-card border border-ink-100">
             <div className="flex items-center gap-3">
               <Icon3D name="scroll" size={56} />
-              <div>
+              <div className="flex-1">
                 <p className="font-display font-bold">Audit Logs</p>
                 <p className="text-xs text-ink-500">
-                  {data?.totalToday ?? 0} event hari ini · auto-refresh 30s
+                  {data?.totalToday ?? 0} event hari ini · {pagination?.total ?? 0} total · auto-refresh 30s
                 </p>
               </div>
             </div>
+
+            {/* Filters */}
+            <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <select
+                className="rounded-2xl border border-ink-200 bg-white px-3 py-2 text-sm"
+                value={actionFilter}
+                onChange={(e) => {
+                  setActionFilter(e.target.value);
+                  setPage(1);
+                }}
+              >
+                <option value="">Semua action</option>
+                {distinctActions.map((a) => (
+                  <option key={a} value={a}>
+                    {ACTION_LABEL[a] ?? a}
+                  </option>
+                ))}
+              </select>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400" />
+                <input
+                  className="w-full rounded-2xl border border-ink-200 bg-white py-2 pl-9 pr-3 text-sm"
+                  placeholder="Cari email user..."
+                  value={userFilter}
+                  onChange={(e) => {
+                    setUserFilter(e.target.value);
+                    setPage(1);
+                  }}
+                />
+              </div>
+            </div>
+
             <ul className="mt-4 max-h-[480px] space-y-2 overflow-y-auto pr-1">
               {logs.length === 0 && (
                 <li className="rounded-2xl bg-ink-50 p-6 text-center text-xs text-ink-500">
@@ -211,6 +257,33 @@ export default function SecurityPage() {
                 );
               })}
             </ul>
+
+            {/* Pagination */}
+            {pagination && pagination.totalPages > 1 && (
+              <div className="mt-3 flex items-center justify-between">
+                <p className="text-xs text-ink-500">
+                  Halaman {pagination.page} dari {pagination.totalPages}
+                </p>
+                <div className="flex gap-1">
+                  <button
+                    onClick={() => setPage(Math.max(1, page - 1))}
+                    disabled={page <= 1}
+                    className="rounded-lg p-1.5 hover:bg-ink-100 disabled:opacity-30"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={() =>
+                      setPage(Math.min(pagination.totalPages, page + 1))
+                    }
+                    disabled={page >= pagination.totalPages}
+                    className="rounded-lg p-1.5 hover:bg-ink-100 disabled:opacity-30"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

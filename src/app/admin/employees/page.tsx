@@ -10,7 +10,7 @@ import { Modal } from "@/components/ui/Modal";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { api } from "@/lib/api";
 import { downloadFile } from "@/lib/download";
-import { Edit2, FileSpreadsheet, FileText, Filter, Search, Trash2, UserPlus } from "lucide-react";
+import { Edit2, FileSpreadsheet, FileText, Filter, LogOut, Search, Trash2, Upload, UserPlus } from "lucide-react";
 const ROLES = ["employee", "supervisor", "hr", "owner"] as const;
 const STATUSES = ["active", "leave", "inactive"] as const;
 
@@ -18,6 +18,8 @@ export default function EmployeesPage() {
   const qc = useQueryClient();
   const [q, setQ] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [resignId, setResignId] = useState<string | null>(null);
   const [editId, setEditId] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [divisionFilter, setDivisionFilter] = useState("");
@@ -94,6 +96,12 @@ export default function EmployeesPage() {
             >
               <FileText className="h-4 w-4" />
               {exporting === "pdf" ? "Mengunduh..." : "PDF"}
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => setBulkOpen(true)}
+            >
+              <Upload className="h-4 w-4" /> Bulk Import
             </Button>
             <Button onClick={() => setCreateOpen(true)}>
               <UserPlus className="h-4 w-4" /> Tambah Pegawai
@@ -238,6 +246,15 @@ export default function EmployeesPage() {
                           >
                             <Edit2 className="h-4 w-4 text-ink-600" />
                           </button>
+                          {e.status !== "inactive" && (
+                            <button
+                              onClick={() => setResignId(e.id)}
+                              className="rounded-lg p-2 hover:bg-amber-50"
+                              title="Resign"
+                            >
+                              <LogOut className="h-4 w-4 text-amber-600" />
+                            </button>
+                          )}
                           <button
                             onClick={() => setDeleteId(e.id)}
                             className="rounded-lg p-2 hover:bg-danger-500/10"
@@ -284,6 +301,10 @@ export default function EmployeesPage() {
         description="Pegawai dan akun login akan dihapus permanen. Aksi ini tidak bisa dibatalkan."
         loading={remove.isPending}
       />
+      {bulkOpen && <BulkImportModal onClose={() => setBulkOpen(false)} />}
+      {resignId && (
+        <ResignModal id={resignId} onClose={() => setResignId(null)} />
+      )}
     </>
   );
 }
@@ -637,5 +658,243 @@ function Field({
       <span className="label">{label}</span>
       {children}
     </label>
+  );
+}
+
+
+function BulkImportModal({ onClose }: { onClose: () => void }) {
+  const qc = useQueryClient();
+  const [csvText, setCsvText] = useState("");
+  const [defaultPassword, setDefaultPassword] = useState("demo1234");
+  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<any | null>(null);
+
+  const TEMPLATE = [
+    "email,fullName,employeeCode,role,division,position,baseSalary,ptkpStatus,npwp,jkkClass,joinDate,phone",
+    "andi@manggala.id,Andi Pratama,EMP-100,employee,Engineering,Software Engineer,8500000,K/0,,1,2024-01-15,081234567890",
+    "siti@manggala.id,Siti Rahmawati,EMP-101,supervisor,HR,HR Lead,12500000,K/1,123456789012345,1,2023-06-01,081234567891",
+  ].join("\n");
+
+  function parseCSV(text: string): Record<string, any>[] {
+    const lines = text.trim().split(/\r?\n/);
+    if (lines.length < 2) throw new Error("CSV harus punya header + minimal 1 baris data");
+    const headers = lines[0].split(",").map((h) => h.trim());
+    const rows: Record<string, any>[] = [];
+    for (let i = 1; i < lines.length; i++) {
+      const line = lines[i];
+      if (!line.trim()) continue;
+      const cells = line.split(",").map((c) => c.trim());
+      const row: Record<string, any> = {};
+      headers.forEach((h, idx) => {
+        const v = cells[idx] ?? "";
+        row[h] = v;
+      });
+      rows.push(row);
+    }
+    return rows;
+  }
+
+  const submit = useMutation({
+    mutationFn: async () => {
+      const rows = parseCSV(csvText);
+      return api.adminEmployeeBulkImport(rows, defaultPassword);
+    },
+    onSuccess: (data) => {
+      setResult(data);
+      qc.invalidateQueries({ queryKey: ["admin-employees"] });
+    },
+    onError: (e: any) => setError(e.message),
+  });
+
+  function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onload = () => setCsvText(String(reader.result ?? ""));
+    reader.readAsText(f);
+  }
+
+  return (
+    <Modal open onClose={onClose} title="Bulk Import Pegawai" size="lg">
+      <div className="space-y-4 p-5">
+        {result ? (
+          <div>
+            <div className="rounded-2xl bg-emerald-50 p-4 text-sm">
+              <p className="font-bold text-emerald-700">{result.message}</p>
+              <p className="text-xs text-emerald-700">
+                {result.createdCount} dari {result.attempted} berhasil ditambahkan.
+              </p>
+            </div>
+            {result.errors.length > 0 && (
+              <div className="mt-4 max-h-60 overflow-y-auto rounded-2xl bg-danger-50 p-4">
+                <p className="mb-2 font-bold text-danger-700">
+                  {result.errors.length} baris gagal:
+                </p>
+                <ul className="space-y-1 text-xs">
+                  {result.errors.map((er: any, i: number) => (
+                    <li key={i} className="text-danger-700">
+                      Baris {er.row}: {er.error}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            <div className="mt-4 flex justify-end gap-2">
+              <Button onClick={onClose}>Tutup</Button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <div className="rounded-2xl bg-cyan-50 p-3 text-xs text-cyan-900">
+              <p className="font-semibold">Format CSV:</p>
+              <p>
+                Header wajib: <code>email,fullName,employeeCode</code>. Optional:
+                role, division, position, baseSalary, ptkpStatus, npwp, jkkClass,
+                joinDate, phone, branchId, shiftId.
+              </p>
+              <button
+                type="button"
+                onClick={() => setCsvText(TEMPLATE)}
+                className="mt-2 rounded-lg bg-white px-2 py-1 text-cyan-700 underline"
+              >
+                Pakai template contoh
+              </button>
+            </div>
+
+            {error && (
+              <p className="rounded-xl bg-danger-500/10 p-3 text-xs text-danger-600">
+                {error}
+              </p>
+            )}
+
+            <div>
+              <label className="label">Upload CSV</label>
+              <input
+                type="file"
+                accept=".csv,text/csv"
+                onChange={handleFile}
+                className="block w-full rounded-2xl border border-ink-200 p-2 text-sm"
+              />
+            </div>
+
+            <div>
+              <label className="label">atau Paste CSV</label>
+              <textarea
+                value={csvText}
+                onChange={(e) => setCsvText(e.target.value)}
+                className="input min-h-[200px] font-mono text-xs"
+                placeholder={TEMPLATE}
+              />
+            </div>
+
+            <div>
+              <label className="label">Default Password (untuk pegawai tanpa kolom password)</label>
+              <input
+                className="input"
+                value={defaultPassword}
+                onChange={(e) => setDefaultPassword(e.target.value)}
+              />
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <Button variant="secondary" onClick={onClose}>
+                Batal
+              </Button>
+              <Button
+                onClick={() => submit.mutate()}
+                disabled={!csvText.trim() || submit.isPending}
+              >
+                {submit.isPending ? "Mengimport..." : "Import"}
+              </Button>
+            </div>
+          </>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
+
+function ResignModal({ id, onClose }: { id: string; onClose: () => void }) {
+  const qc = useQueryClient();
+  const [resignDate, setResignDate] = useState(
+    new Date().toISOString().slice(0, 10)
+  );
+  const [reason, setReason] = useState("");
+  const [deactivateUser, setDeactivateUser] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const resign = useMutation({
+    mutationFn: () =>
+      api.adminEmployeeResign(id, { resignDate, reason: reason || undefined, deactivateUser }),
+    onSuccess: (data: any) => {
+      qc.invalidateQueries({ queryKey: ["admin-employees"] });
+      alert(data.message);
+      onClose();
+    },
+    onError: (e: any) => setError(e.message),
+  });
+
+  return (
+    <Modal open onClose={onClose} title="Set Pegawai Resign" size="md">
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          resign.mutate();
+        }}
+        className="space-y-3 p-5"
+      >
+        <div className="rounded-2xl bg-amber-50 p-3 text-xs text-amber-900">
+          <strong>Catatan:</strong> Pegawai akan di-set status <code>inactive</code> +
+          tidak ikut digenerate payroll bulan-bulan berikutnya. History attendance,
+          payroll, dan leave tetap dipertahankan.
+        </div>
+        {error && (
+          <p className="rounded-xl bg-danger-500/10 p-3 text-xs text-danger-600">
+            {error}
+          </p>
+        )}
+        <div>
+          <label className="label">Tanggal Resign</label>
+          <input
+            required
+            type="date"
+            className="input"
+            value={resignDate}
+            onChange={(e) => setResignDate(e.target.value)}
+          />
+        </div>
+        <div>
+          <label className="label">Alasan (opsional)</label>
+          <textarea
+            className="input min-h-[60px]"
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="mis. Pindah perusahaan, kontrak berakhir, dll"
+          />
+        </div>
+        <label className="flex items-center gap-2 rounded-2xl bg-brand-50 p-3 text-sm">
+          <input
+            type="checkbox"
+            checked={deactivateUser}
+            onChange={(e) => setDeactivateUser(e.target.checked)}
+          />
+          <div className="flex-1">
+            <p className="font-semibold">Nonaktifkan akun login</p>
+            <p className="text-xs text-ink-500">
+              Pegawai tidak bisa login lagi setelah tanggal resign
+            </p>
+          </div>
+        </label>
+        <div className="flex justify-end gap-2 pt-2">
+          <Button type="button" variant="secondary" onClick={onClose}>
+            Batal
+          </Button>
+          <Button type="submit" disabled={resign.isPending}>
+            {resign.isPending ? "Memproses..." : "Set Resign"}
+          </Button>
+        </div>
+      </form>
+    </Modal>
   );
 }

@@ -134,7 +134,7 @@ export default function AttendancePage() {
         const data =
           action === "checkin"
             ? await api.checkIn({ ...payload, photoUrl })
-            : await api.checkOut(payload);
+            : await api.checkOut({ ...payload, photoUrl });
         setResult(data);
         setStep("success");
         qc.invalidateQueries({ queryKey: ["attendance-me"] });
@@ -255,9 +255,7 @@ export default function AttendancePage() {
             size="xl"
             className="mt-5"
             disabled={!coords}
-            onClick={() =>
-              setStep(action === "checkin" ? "camera" : "scanning")
-            }
+            onClick={() => setStep("camera")}
           >
             <ScanFace className="h-5 w-5" />
             {action === "checkin"

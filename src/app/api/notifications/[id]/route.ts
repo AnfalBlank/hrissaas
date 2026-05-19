@@ -29,3 +29,24 @@ export async function PATCH(
     return handleError(e);
   }
 }
+
+export async function DELETE(
+  _req: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const session = await requireSession();
+    const [existing] = await db
+      .select()
+      .from(schema.notifications)
+      .where(eq(schema.notifications.id, params.id));
+    if (!existing || existing.userId !== session.sub)
+      return fail(404, "Notifikasi tidak ditemukan");
+    await db
+      .delete(schema.notifications)
+      .where(eq(schema.notifications.id, params.id));
+    return ok({ deleted: true });
+  } catch (e) {
+    return handleError(e);
+  }
+}

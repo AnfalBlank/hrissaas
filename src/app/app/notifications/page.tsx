@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/Badge";
 import { api } from "@/lib/api";
 import { useRealtime } from "@/lib/realtime";
 import { resolveNotifLink } from "@/lib/notif-route";
-import { CheckCheck } from "lucide-react";
+import { CheckCheck, Trash2 } from "lucide-react";
 
 const ICON_MAP: Record<string, Icon3DName> = {
   attendance: "face",
@@ -66,6 +66,14 @@ export default function NotificationsPage() {
     mutationFn: () => api.notificationsReadAll(),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["notifications"] }),
   });
+  const deleteOne = useMutation({
+    mutationFn: (id: string) => api.notificationDelete(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["notifications"] }),
+  });
+  const clearRead = useMutation({
+    mutationFn: () => api.notificationsClear("read"),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["notifications"] }),
+  });
 
   const all = data?.items ?? [];
   const items =
@@ -86,15 +94,30 @@ export default function NotificationsPage() {
             : "Semua sudah dibaca"
         }
         right={
-          unreadCount > 0 ? (
-            <button
-              onClick={() => markAll.mutate()}
-              disabled={markAll.isPending}
-              className="inline-flex items-center gap-1 rounded-full bg-white px-3 py-1.5 text-[11px] font-semibold text-brand-600 border border-ink-100 shadow-soft"
-            >
-              <CheckCheck className="h-3 w-3" /> Tandai semua
-            </button>
-          ) : undefined
+          <div className="flex items-center gap-1">
+            {unreadCount > 0 && (
+              <button
+                onClick={() => markAll.mutate()}
+                disabled={markAll.isPending}
+                className="inline-flex items-center gap-1 rounded-full bg-white px-3 py-1.5 text-[11px] font-semibold text-brand-600 border border-ink-100 shadow-soft"
+              >
+                <CheckCheck className="h-3 w-3" /> Tandai semua
+              </button>
+            )}
+            {all.length > 0 && all.some((n: any) => n.readAt) && (
+              <button
+                onClick={() => {
+                  if (confirm("Hapus semua notifikasi yang sudah dibaca?")) {
+                    clearRead.mutate();
+                  }
+                }}
+                disabled={clearRead.isPending}
+                className="inline-flex items-center gap-1 rounded-full bg-white px-3 py-1.5 text-[11px] font-semibold text-danger-600 border border-ink-100 shadow-soft"
+              >
+                <Trash2 className="h-3 w-3" /> Bersihkan
+              </button>
+            )}
+          </div>
         }
       />
 
@@ -127,34 +150,48 @@ export default function NotificationsPage() {
           return (
             <li
               key={n.id}
-              onClick={() => {
-                if (unread) markOne.mutate(n.id);
-                router.push(resolveNotifLink(n, false));
-              }}
-              className={`flex gap-3 rounded-2xl p-3 shadow-soft border cursor-pointer transition ${
+              className={`group relative flex gap-3 rounded-2xl p-3 shadow-soft border transition ${
                 unread
-                  ? "bg-brand-50/60 border-brand-100 active:scale-[0.99]"
+                  ? "bg-brand-50/60 border-brand-100"
                   : "bg-white border-ink-100"
               }`}
             >
-              <Icon3D
-                name={(ICON_MAP[n.category] ?? n.icon ?? "bell") as Icon3DName}
-                size={48}
-              />
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="truncate text-sm font-bold">{n.title}</p>
-                  {unread && <Badge variant="brand">Baru</Badge>}
-                </div>
-                {n.body && (
-                  <p className="mt-0.5 text-xs text-ink-600 whitespace-pre-line">
-                    {n.body}
+              <button
+                onClick={() => {
+                  if (unread) markOne.mutate(n.id);
+                  router.push(resolveNotifLink(n, false));
+                }}
+                className="flex flex-1 gap-3 text-left active:scale-[0.99]"
+              >
+                <Icon3D
+                  name={(ICON_MAP[n.category] ?? n.icon ?? "bell") as Icon3DName}
+                  size={48}
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="truncate text-sm font-bold">{n.title}</p>
+                    {unread && <Badge variant="brand">Baru</Badge>}
+                  </div>
+                  {n.body && (
+                    <p className="mt-0.5 text-xs text-ink-600 whitespace-pre-line">
+                      {n.body}
+                    </p>
+                  )}
+                  <p className="mt-1 text-[10px] text-ink-400">
+                    {timeAgo(n.createdAt)}
                   </p>
-                )}
-                <p className="mt-1 text-[10px] text-ink-400">
-                  {timeAgo(n.createdAt)}
-                </p>
-              </div>
+                </div>
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  deleteOne.mutate(n.id);
+                }}
+                className="rounded-lg p-1.5 text-ink-400 hover:bg-danger-50 hover:text-danger-600 self-start"
+                title="Hapus"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
             </li>
           );
         })}

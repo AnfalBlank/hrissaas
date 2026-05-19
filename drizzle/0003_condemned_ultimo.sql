@@ -1,0 +1,1 @@
+ALTER TABLE `attendances` ADD `check_out_photo_url` text;

@@ -52,6 +52,8 @@ export const api = {
     latitude: number;
     longitude: number;
     method?: "face" | "qr" | "manual";
+    photoUrl?: string;
+    photoDataUrl?: string;
   }) =>
     request("/api/attendance/check-out", {
       method: "POST",
@@ -115,6 +117,10 @@ export const api = {
   notifications: () => request<{ items: any[] }>("/api/notifications"),
   notificationRead: (id: string) =>
     request(`/api/notifications/${id}`, { method: "PATCH" }),
+  notificationDelete: (id: string) =>
+    request(`/api/notifications/${id}`, { method: "DELETE" }),
+  notificationsClear: (scope: "read" | "all" = "read") =>
+    request(`/api/notifications/clear?scope=${scope}`, { method: "DELETE" }),
   notificationsReadAll: () =>
     request("/api/notifications/read-all", { method: "POST" }),
   announcements: () => request<{ items: any[] }>("/api/announcements"),
@@ -138,8 +144,25 @@ export const api = {
   // Admin
   adminDashboard: () => request<any>("/api/admin/dashboard"),
   adminAnalytics: () => request<any>("/api/admin/analytics"),
-  adminAuditLogs: () =>
-    request<{ items: any[]; totalToday: number }>("/api/admin/audit-logs"),
+  adminAuditLogs: (params?: {
+    page?: number;
+    limit?: number;
+    action?: string;
+    user?: string;
+  }) => {
+    const qs = new URLSearchParams();
+    if (params?.page) qs.set("page", String(params.page));
+    if (params?.limit) qs.set("limit", String(params.limit));
+    if (params?.action) qs.set("action", params.action);
+    if (params?.user) qs.set("user", params.user);
+    const suffix = qs.toString() ? `?${qs}` : "";
+    return request<{
+      items: any[];
+      pagination: { page: number; limit: number; total: number; totalPages: number };
+      totalToday: number;
+      actions: string[];
+    }>(`/api/admin/audit-logs${suffix}`);
+  },
   adminQrToken: (branchId: string) =>
     request<{ token: string; branch: any; expiresInSec: number }>(
       `/api/admin/qr-token?branchId=${branchId}`
@@ -172,6 +195,21 @@ export const api = {
     }),
   adminEmployeeDelete: (id: string) =>
     request(`/api/admin/employees/${id}`, { method: "DELETE" }),
+  adminEmployeeBulkImport: (
+    rows: Record<string, any>[],
+    defaultPassword?: string
+  ) =>
+    request<{
+      attempted: number;
+      createdCount: number;
+      failedCount: number;
+      created: any[];
+      errors: { row: number; error: string; data: any }[];
+      message: string;
+    }>("/api/admin/employees/bulk", {
+      method: "POST",
+      body: JSON.stringify({ rows, defaultPassword: defaultPassword || "demo1234" }),
+    }),
   adminAttendance: (date?: string) =>
     request<{ items: any[]; summary: any; date: string }>(
       `/api/admin/attendance${date ? `?date=${date}` : ""}`

@@ -49,6 +49,30 @@ export async function GET() {
       .where(eq(schema.employees.companyId, session.companyId));
     const totalEmp = employees.length || 1;
 
+    // Hari kerja per bulan dihitung dari kalender minus weekend & holidays
+    const holidayRows = await db
+      .select()
+      .from(schema.holidays)
+      .where(eq(schema.holidays.companyId, session.companyId));
+    const holidaySet = new Set(holidayRows.map((h) => h.date));
+    const recurringHolidayMmDd = new Set(
+      holidayRows.filter((h) => h.recurringYearly).map((h) => h.date.slice(5))
+    );
+
+    function workingDaysInMonth(year: number, month: number): number {
+      const days = new Date(year, month, 0).getDate();
+      let count = 0;
+      for (let d = 1; d <= days; d++) {
+        const date = new Date(year, month - 1, d);
+        if (date.getDay() === 0) continue; // Minggu
+        const ymd = `${year}-${String(month).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+        if (holidaySet.has(ymd)) continue;
+        if (recurringHolidayMmDd.has(ymd.slice(5))) continue;
+        count++;
+      }
+      return count;
+    }
+
     for (let i = 0; i < 12; i++) {
       const d = new Date(now.getFullYear(), now.getMonth() - 11 + i, 1);
       const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
@@ -58,7 +82,7 @@ export async function GET() {
       const present = monthRows.filter(
         (r) => r.status === "present" || r.status === "late"
       ).length;
-      const workingDays = new Set(monthRows.map((r) => r.date)).size || 1;
+      const workingDays = workingDaysInMonth(d.getFullYear(), d.getMonth() + 1) || 1;
       const v = Math.round((present / (totalEmp * workingDays)) * 100);
       trend.push({
         m: monthNames[d.getMonth()],
@@ -67,7 +91,7 @@ export async function GET() {
       });
     }
 
-    // Productivity per division (% present + on time)
+    // Productivity per division (% present + on time vs working days)
     const divMap = new Map<string, { total: number; present: number }>();
     employees.forEach((e) => {
       const k = e.division || "Lainnya";
@@ -84,9 +108,20 @@ export async function GET() {
         cur.present++;
       }
     });
+    // Total working days dalam 12 bulan terakhir
+    const totalWorkDays = (() => {
+      let sum = 0;
+      for (let i = 0; i < 12; i++) {
+        const d = new Date(now.getFullYear(), now.getMonth() - 11 + i, 1);
+        sum += workingDaysInMonth(d.getFullYear(), d.getMonth() + 1);
+      }
+      return sum || 1;
+    })();
     const productivity = Array.from(divMap, ([d, v]) => ({
       d,
-      v: v.total ? Math.min(100, Math.round((v.present / (v.total * 22)) * 100)) : 0,
+      v: v.total
+        ? Math.min(100, Math.round((v.present / (v.total * totalWorkDays / 12)) * 100))
+        : 0,
     }));
 
     // Heatmap: day-of-week × hour

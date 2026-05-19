@@ -22,7 +22,12 @@ export async function GET() {
       db
         .select()
         .from(schema.employees)
-        .where(eq(schema.employees.companyId, session.companyId)),
+        .where(
+          and(
+            eq(schema.employees.companyId, session.companyId),
+            eq(schema.employees.status, "active")
+          )
+        ),
     ]);
 
     const live = await db

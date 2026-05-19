@@ -149,6 +149,7 @@ export const attendances = sqliteTable(
     checkOutLat: real("check_out_lat"),
     checkOutLng: real("check_out_lng"),
     checkOutMethod: text("check_out_method"),
+    checkOutPhotoUrl: text("check_out_photo_url"),
     status: text("status").notNull().default("present"), // present|late|leave|sick|permission|alpha|overtime
     lateMinutes: integer("late_minutes").default(0),
     overtimeMinutes: integer("overtime_minutes").default(0),
