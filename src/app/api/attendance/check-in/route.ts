@@ -45,31 +45,42 @@ export async function POST(req: NextRequest) {
     }
 
     // GPS validation
-    if (branch?.latitude && branch?.longitude) {
-      const distance = haversine(
-        body.latitude,
-        body.longitude,
-        branch.latitude,
-        branch.longitude
+    if (!branch) {
+      return fail(
+        400,
+        "Anda belum di-assign ke cabang manapun. Hubungi HR untuk set cabang."
       );
-      if (distance > (branch.radiusMeters ?? 100)) {
-        audit({
-          companyId: employee.companyId,
-          userId: session.sub,
-          action: "attendance.check_in.rejected",
-          details: {
-            reason: "outside_geofence",
-            distance: Math.round(distance),
-            branchId: branch.id,
-          },
-          ip: req.headers.get("x-forwarded-for"),
-        });
-        return fail(
-          400,
-          `Anda berada di luar radius kantor (${Math.round(distance)}m)`,
-          { distance }
-        );
-      }
+    }
+    if (branch.latitude == null || branch.longitude == null) {
+      return fail(
+        400,
+        `Cabang "${branch.name}" belum di-set lokasi GPS. Hubungi HR untuk set koordinat.`
+      );
+    }
+    const distance = haversine(
+      body.latitude,
+      body.longitude,
+      branch.latitude,
+      branch.longitude
+    );
+    if (distance > (branch.radiusMeters ?? 100)) {
+      audit({
+        companyId: employee.companyId,
+        userId: session.sub,
+        action: "attendance.check_in.rejected",
+        details: {
+          reason: "outside_geofence",
+          distance: Math.round(distance),
+          branchId: branch.id,
+          branchName: branch.name,
+        },
+        ip: req.headers.get("x-forwarded-for"),
+      });
+      return fail(
+        400,
+        `Anda berada ${Math.round(distance)}m dari kantor "${branch.name}" (radius ${branch.radiusMeters ?? 100}m).`,
+        { distance, branchName: branch.name }
+      );
     }
 
     const date = todayLocalDate();
@@ -134,6 +145,8 @@ export async function POST(req: NextRequest) {
           checkInConfidence: body.confidence,
           status,
           lateMinutes,
+          // Update branch reference ke cabang saat ini (kalau pegawai pindah cabang)
+          branchId: employee.branchId,
         })
         .where(eq(schema.attendances.id, existing[0].id))
         .returning();

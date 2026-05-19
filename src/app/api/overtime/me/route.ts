@@ -26,9 +26,9 @@ export async function GET() {
 }
 
 const Body = z.object({
-  date: z.string(),
-  startTime: z.string(),
-  endTime: z.string(),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Format YYYY-MM-DD"),
+  startTime: z.string().regex(/^\d{2}:\d{2}$/, "Format HH:mm"),
+  endTime: z.string().regex(/^\d{2}:\d{2}$/, "Format HH:mm"),
   description: z.string().optional(),
   isHoliday: z.boolean().optional(),
 });
@@ -46,7 +46,28 @@ export async function POST(req: NextRequest) {
     const session = await requireSession();
     if (!session.employeeId) return fail(400, "Bukan akun pegawai");
     const body = Body.parse(await req.json());
+
+    // Validasi tanggal
+    const date = new Date(body.date);
+    if (isNaN(date.getTime())) return fail(400, "Format tanggal tidak valid");
+
+    // Tidak boleh apply OT untuk tanggal lebih dari 14 hari ke belakang atau ke depan
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const diffDays = Math.round(
+      (date.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
+    );
+    if (diffDays < -14 || diffDays > 30) {
+      return fail(
+        400,
+        "Tanggal lembur harus dalam rentang 14 hari ke belakang sampai 30 hari ke depan."
+      );
+    }
+
     const hours = diffHours(body.startTime, body.endTime);
+    if (hours < 1) return fail(400, "Durasi lembur minimal 1 jam");
+    if (hours > 14)
+      return fail(400, "Durasi lembur maksimal 14 jam dalam satu pengajuan");
 
     const [employee] = await db
       .select()

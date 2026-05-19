@@ -6,6 +6,7 @@ import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { db, schema } from "@/server/db/client";
 import { requireRole } from "@/server/auth/session";
+import { audit } from "@/server/auth/audit";
 import { ok, handleError } from "@/server/api/respond";
 
 const ADMIN_ROLES = ["super_admin", "hr"];
@@ -35,12 +36,12 @@ export async function GET() {
 }
 
 const Body = z.object({
-  name: z.string(),
+  name: z.string().min(1),
   city: z.string().optional(),
   address: z.string().optional(),
-  latitude: z.number(),
-  longitude: z.number(),
-  radiusMeters: z.number().int().positive().default(100),
+  latitude: z.number().min(-90).max(90),
+  longitude: z.number().min(-180).max(180),
+  radiusMeters: z.number().int().positive().max(100_000).default(100),
 });
 
 export async function POST(req: NextRequest) {
@@ -51,6 +52,19 @@ export async function POST(req: NextRequest) {
       .insert(schema.branches)
       .values({ ...body, companyId: session.companyId })
       .returning();
+    audit({
+      companyId: session.companyId,
+      userId: session.sub,
+      action: "branch.create",
+      details: {
+        branchId: row.id,
+        name: body.name,
+        city: body.city,
+        latitude: body.latitude,
+        longitude: body.longitude,
+        radiusMeters: body.radiusMeters,
+      },
+    });
     return ok({ branch: row });
   } catch (e) {
     return handleError(e);

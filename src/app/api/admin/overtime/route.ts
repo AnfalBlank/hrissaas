@@ -6,6 +6,7 @@ import { z } from "zod";
 import { and, desc, eq } from "drizzle-orm";
 import { db, schema } from "@/server/db/client";
 import { requireRole } from "@/server/auth/session";
+import { audit } from "@/server/auth/audit";
 import { ok, fail, handleError } from "@/server/api/respond";
 import { broadcastFeed, notify } from "@/server/notifications/dispatch";
 
@@ -112,6 +113,18 @@ export async function PATCH(req: NextRequest) {
     broadcastFeed(session.companyId, "overtime:decided", {
       overtime: row,
       status: body.status,
+    });
+
+    audit({
+      companyId: session.companyId,
+      userId: session.sub,
+      action: `overtime.${body.status}`,
+      details: {
+        overtimeId: row.id,
+        employeeId: row.employeeId,
+        date: row.date,
+        hours: row.hours,
+      },
     });
 
     return ok({ overtime: row });

@@ -7,6 +7,7 @@ import { eq } from "drizzle-orm";
 import { db, schema } from "@/server/db/client";
 import { requireSession } from "@/server/auth/session";
 import { hashPassword, verifyPassword } from "@/server/auth/password";
+import { audit } from "@/server/auth/audit";
 import { ok, fail, handleError } from "@/server/api/respond";
 
 const Body = z.object({
@@ -26,12 +27,35 @@ export async function POST(req: NextRequest) {
     if (!user) return fail(404, "User tidak ditemukan");
 
     const valid = await verifyPassword(body.currentPassword, user.passwordHash);
-    if (!valid) return fail(400, "Password lama salah");
+    if (!valid) {
+      audit({
+        companyId: user.companyId,
+        userId: user.id,
+        action: "profile.password.failed",
+        details: { reason: "wrong_current_password" },
+        ip:
+          req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+          req.headers.get("x-real-ip"),
+        userAgent: req.headers.get("user-agent"),
+      });
+      return fail(400, "Password lama salah");
+    }
 
     await db
       .update(schema.users)
       .set({ passwordHash: await hashPassword(body.newPassword) })
       .where(eq(schema.users.id, user.id));
+
+    audit({
+      companyId: user.companyId,
+      userId: user.id,
+      action: "profile.password.changed",
+      details: { email: user.email },
+      ip:
+        req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+        req.headers.get("x-real-ip"),
+      userAgent: req.headers.get("user-agent"),
+    });
 
     return ok({ updated: true });
   } catch (e) {

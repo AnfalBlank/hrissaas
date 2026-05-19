@@ -3,9 +3,10 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest } from "next/server";
 import { z } from "zod";
-import { and, desc, eq, like, or } from "drizzle-orm";
+import { and, desc, eq, like, ne, or } from "drizzle-orm";
 import { db, schema } from "@/server/db/client";
 import { requireRole } from "@/server/auth/session";
+import { audit } from "@/server/auth/audit";
 import { ok, handleError } from "@/server/api/respond";
 import { hashPassword } from "@/server/auth/password";
 
@@ -16,8 +17,16 @@ export async function GET(req: NextRequest) {
     const session = await requireRole(ADMIN_ROLES);
     const url = new URL(req.url);
     const q = url.searchParams.get("q");
+    const status = url.searchParams.get("status"); // active|inactive|leave|all
+    const includeInactive = url.searchParams.get("includeInactive") === "1";
 
     const filters = [eq(schema.employees.companyId, session.companyId)];
+    if (status && status !== "all") {
+      filters.push(eq(schema.employees.status, status));
+    } else if (!includeInactive && !status) {
+      // Default: exclude inactive (resigned)
+      filters.push(ne(schema.employees.status, "inactive"));
+    }
     if (q) {
       filters.push(
         or(
@@ -115,6 +124,18 @@ export async function POST(req: NextRequest) {
         phone: body.phone,
       })
       .returning();
+
+    audit({
+      companyId: session.companyId,
+      userId: session.sub,
+      action: "employee.create",
+      details: {
+        employeeId: employee.id,
+        employeeCode: body.employeeCode,
+        email: body.email,
+        role: body.role,
+      },
+    });
 
     return ok({ user, employee });
   } catch (e) {

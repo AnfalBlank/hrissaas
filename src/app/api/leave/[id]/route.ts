@@ -2,7 +2,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest } from "next/server";
-import { eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db, schema } from "@/server/db/client";
 import { requireSession } from "@/server/auth/session";
 import { ok, fail, handleError } from "@/server/api/respond";
@@ -20,8 +20,27 @@ export async function DELETE(
       .where(eq(schema.leaves.id, params.id));
     if (!existing || existing.employeeId !== session.employeeId)
       return fail(404, "Pengajuan tidak ditemukan");
-    if (existing.status !== "pending")
-      return fail(400, "Hanya pengajuan yang masih menunggu yang bisa dibatalkan");
+
+    // Pegawai hanya boleh cancel pending atau approved (kalau approved, restore quota)
+    if (existing.status === "rejected")
+      return fail(400, "Pengajuan yang ditolak tidak perlu dibatalkan");
+
+    // Restore kuota jika sebelumnya sudah di-approve
+    if (existing.status === "approved") {
+      const year = new Date(existing.fromDate).getFullYear();
+      await db
+        .update(schema.leaveQuotas)
+        .set({
+          used: sql`MAX(0, ${schema.leaveQuotas.used} - ${existing.days})`,
+        })
+        .where(
+          and(
+            eq(schema.leaveQuotas.employeeId, existing.employeeId),
+            eq(schema.leaveQuotas.type, existing.type),
+            eq(schema.leaveQuotas.year, year)
+          )
+        );
+    }
 
     await db.delete(schema.leaves).where(eq(schema.leaves.id, params.id));
     broadcastFeed(session.companyId, "leave:cancelled", { leaveId: params.id });

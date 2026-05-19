@@ -250,6 +250,23 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify(data),
     }),
+  // Tambah method baru ke SDK
+  adminCompany: () =>
+    request<{ company: any }>("/api/admin/company"),
+  adminCompanyUpdate: (data: any) =>
+    request<{ company: any }>("/api/admin/company", {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
+  adminEmployeeResign: (
+    id: string,
+    data: { resignDate: string; reason?: string; deactivateUser?: boolean }
+  ) =>
+    request<{ employee: any; message: string }>(
+      `/api/admin/employees/${id}/resign`,
+      { method: "POST", body: JSON.stringify(data) }
+    ),
+
   adminPayrollDelete: (id: string) =>
     request(`/api/admin/payroll/${id}`, { method: "DELETE" }),
   adminPayrollRevisions: (id: string) =>

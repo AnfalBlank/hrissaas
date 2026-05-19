@@ -6,6 +6,7 @@ import { z } from "zod";
 import { and, eq } from "drizzle-orm";
 import { db, schema } from "@/server/db/client";
 import { requireRole } from "@/server/auth/session";
+import { audit } from "@/server/auth/audit";
 import { ok, fail, handleError } from "@/server/api/respond";
 
 const ADMIN_ROLES = ["super_admin", "hr"];
@@ -92,6 +93,29 @@ export async function PATCH(
         .where(eq(schema.users.id, existing.userId));
     }
 
+    // Track perubahan field penting untuk audit
+    const changedKeys = Object.keys(empPatch).filter(
+      (k) => (existing as any)[k] !== (updateData as any)[k]
+    );
+    audit({
+      companyId: session.companyId,
+      userId: session.sub,
+      action: "employee.update",
+      details: {
+        employeeId: params.id,
+        employeeCode: existing.employeeCode,
+        changedKeys,
+        // Cabang/shift change penting — log eksplisit
+        branchChanged:
+          empPatch.branchId !== undefined &&
+          existing.branchId !== empPatch.branchId,
+        shiftChanged:
+          empPatch.shiftId !== undefined &&
+          existing.shiftId !== empPatch.shiftId,
+        roleChanged: !!role && role !== existing.userId,
+      },
+    });
+
     return ok({ employee });
   } catch (e) {
     return handleError(e);
@@ -111,7 +135,31 @@ export async function DELETE(
     if (!existing || existing.companyId !== session.companyId)
       return fail(404, "Pegawai tidak ditemukan");
 
-    // Cascade via FK + soft handle: delete user removes employee row too
+    // Cek apakah punya payroll/attendance — kalau ada, sarankan resign saja
+    const [payrollCount] = await db
+      .select({ c: schema.payrolls.id })
+      .from(schema.payrolls)
+      .where(eq(schema.payrolls.employeeId, params.id))
+      .limit(1);
+    if (payrollCount) {
+      return fail(
+        400,
+        "Pegawai punya history payroll. Gunakan endpoint /resign untuk soft-delete (mempertahankan history)."
+      );
+    }
+
+    audit({
+      companyId: session.companyId,
+      userId: session.sub,
+      action: "employee.delete",
+      details: {
+        employeeId: params.id,
+        employeeCode: existing.employeeCode,
+        fullName: existing.fullName,
+      },
+    });
+
+    // Cascade via FK: delete user removes employee row too
     await db.delete(schema.users).where(eq(schema.users.id, existing.userId));
     return ok({ deleted: true });
   } catch (e) {

@@ -6,6 +6,7 @@ import { z } from "zod";
 import { desc, eq } from "drizzle-orm";
 import { db, schema } from "@/server/db/client";
 import { requireRole } from "@/server/auth/session";
+import { audit } from "@/server/auth/audit";
 import { ok, handleError } from "@/server/api/respond";
 
 const ADMIN_ROLES = ["super_admin", "hr"];
@@ -42,6 +43,12 @@ export async function POST(req: NextRequest) {
       .insert(schema.announcements)
       .values({ ...body, companyId: session.companyId })
       .returning();
+    audit({
+      companyId: session.companyId,
+      userId: session.sub,
+      action: "announcement.create",
+      details: { id: row.id, type: body.type, title: body.title, status: body.status },
+    });
     return ok({ item: row });
   } catch (e) {
     return handleError(e);

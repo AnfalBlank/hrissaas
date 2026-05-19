@@ -3,9 +3,10 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest } from "next/server";
 import { z } from "zod";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { db, schema } from "@/server/db/client";
 import { requireRole } from "@/server/auth/session";
+import { audit } from "@/server/auth/audit";
 import { ok, fail, handleError } from "@/server/api/respond";
 import { broadcastFeed, notify } from "@/server/notifications/dispatch";
 
@@ -74,6 +75,33 @@ export async function PATCH(req: NextRequest) {
     if (!existing) return fail(404, "Pengajuan tidak ditemukan");
     if (existing.companyId !== session.companyId) return fail(403, "Forbidden");
 
+    const wasApproved = existing.status === "approved";
+    const willBeApproved = body.status === "approved";
+    const year = new Date(existing.fromDate).getFullYear();
+
+    // Validasi quota saat approve (kalau belum approve sebelumnya)
+    if (willBeApproved && !wasApproved) {
+      const [quota] = await db
+        .select()
+        .from(schema.leaveQuotas)
+        .where(
+          and(
+            eq(schema.leaveQuotas.employeeId, existing.employeeId),
+            eq(schema.leaveQuotas.type, existing.type),
+            eq(schema.leaveQuotas.year, year)
+          )
+        );
+      if (quota) {
+        const remaining = quota.total - quota.used;
+        if (remaining < existing.days) {
+          return fail(
+            400,
+            `Tidak bisa approve: kuota ${existing.type} tahun ${year} tersisa ${remaining} hari, dibutuhkan ${existing.days} hari.`
+          );
+        }
+      }
+    }
+
     const [row] = await db
       .update(schema.leaves)
       .set({
@@ -84,6 +112,49 @@ export async function PATCH(req: NextRequest) {
       })
       .where(eq(schema.leaves.id, body.id))
       .returning();
+
+    // Auto-update kuota
+    // - approve baru: decrement used += days
+    // - approved → rejected: restore used -= days
+    if (!wasApproved && willBeApproved) {
+      await db
+        .update(schema.leaveQuotas)
+        .set({ used: sql`${schema.leaveQuotas.used} + ${existing.days}` })
+        .where(
+          and(
+            eq(schema.leaveQuotas.employeeId, existing.employeeId),
+            eq(schema.leaveQuotas.type, existing.type),
+            eq(schema.leaveQuotas.year, year)
+          )
+        );
+    } else if (wasApproved && !willBeApproved) {
+      await db
+        .update(schema.leaveQuotas)
+        .set({
+          used: sql`MAX(0, ${schema.leaveQuotas.used} - ${existing.days})`,
+        })
+        .where(
+          and(
+            eq(schema.leaveQuotas.employeeId, existing.employeeId),
+            eq(schema.leaveQuotas.type, existing.type),
+            eq(schema.leaveQuotas.year, year)
+          )
+        );
+    }
+
+    audit({
+      companyId: session.companyId,
+      userId: session.sub,
+      action: `leave.${body.status}`,
+      details: {
+        leaveId: row.id,
+        employeeId: row.employeeId,
+        type: row.type,
+        days: row.days,
+        fromDate: row.fromDate,
+        toDate: row.toDate,
+      },
+    });
 
     // Notify the employee whose leave was decided
     const [employee] = await db

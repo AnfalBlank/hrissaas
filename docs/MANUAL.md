@@ -1854,3 +1854,132 @@ api.adminPayrollRevisions(payrollId)
 // → GET /api/admin/payroll/[id]/revisions
 // returns { items: PayrollRevision[] }
 ```
+
+
+---
+
+## 11. Audit & Hardening Sweep (Mei 2026)
+
+### 11.1 Bug Fix: Check-in Setelah Pindah Cabang
+
+**Gejala**: Pegawai dipindah cabang tapi check-in masih ditolak / pakai radius cabang lama.
+
+**Root cause**: Tiga kemungkinan:
+1. Cabang baru belum di-set `latitude/longitude` → check-in lewat tanpa validasi (bug latent).
+2. Sudah ada attendance hari ini dengan `branchId` lama → check-in update tidak ganti `branchId`.
+3. UI `meData` cache di sisi pegawai stale → tampil cabang lama.
+
+**Fix**:
+- Validasi eksplisit di check-in: jika pegawai belum punya cabang atau cabang tanpa GPS, return error jelas dengan nama cabang.
+- Saat update attendance hari ini, refresh `branchId` ke cabang aktif pegawai.
+- Pesan error sertakan nama cabang dan jarak aktual: `"Anda berada 234m dari kantor 'Cabang Jakarta' (radius 100m)."`
+- PATCH `/admin/employees/[id]` sekarang log `branchChanged` di audit untuk trace.
+
+### 11.2 Leave — Quota Auto-Decrement & Validasi
+
+#### Saat apply leave (`POST /api/leave/me`)
+- Validasi `fromDate <= toDate`.
+- Cek overlap dengan leave existing (status pending/approved) → reject.
+- Cek quota tahun ybs: jika `total - used < days`, reject dengan pesan jelas berapa tersisa.
+
+#### Saat approve leave (`PATCH /api/admin/leave`)
+- Validasi quota cukup sebelum approve.
+- Auto-update `leaveQuotas.used += days`.
+- Audit log `leave.approved` dengan detail.
+
+#### Saat ubah keputusan / cancel
+- Approved → rejected: restore `used -= days` (clamped ke 0).
+- Pegawai cancel approved leave: restore quota juga.
+- Pegawai cancel pending leave: tidak ada perubahan quota.
+
+### 11.3 Auth — Rate Limiting Login
+
+In-memory rate limiter di `src/server/auth/rate-limit.ts`:
+
+- Window: **15 menit**
+- Threshold: **5 failed attempts** per `(ip + email)` kombinasi.
+- Setelah threshold: **lockout 30 menit**, response `429` + `retryAfterSec`.
+- Sukses login otomatis reset counter.
+- Setiap failed attempt + lockout di-audit log dengan `remaining` dan `blocked: true/false`.
+
+> **Catatan production**: Map in-memory tidak survive restart. Untuk multi-instance Vercel, ganti ke Redis/Upstash.
+
+### 11.4 Resign Endpoint (Soft Delete)
+
+`POST /api/admin/employees/[id]/resign`:
+
+```json
+{
+  "resignDate": "2026-05-31",
+  "reason": "Pindah perusahaan",
+  "deactivateUser": true
+}
+```
+
+- Set `employees.status = 'inactive'` + `resignDate`.
+- Optional: `users.active = false` (lock login).
+- History attendance/payroll/leave **tidak dihapus**.
+- DELETE pegawai biasa sekarang **block jika punya history payroll** — sarankan resign saja.
+
+List endpoint `GET /api/admin/employees`:
+- Default exclude `status='inactive'`.
+- `?status=active|inactive|leave|all` atau `?includeInactive=1` untuk override.
+
+### 11.5 Edit Profil Perusahaan
+
+Endpoint baru: `GET/PATCH /api/admin/company`. Halaman `/admin/settings` sekarang:
+
+- Tampilkan nama, slug, domain, plan, timezone, logo dari `companies` table (no more hardcode "PT Manggala Sejahtera").
+- Tombol "Edit Profil" buka modal untuk edit. Slug uniqueness dicek server-side.
+- Audit log `company.update` mencatat `changedKeys`.
+- Hanya `super_admin` dan `owner` yang boleh edit.
+
+### 11.6 Audit Log Lengkap untuk Mutasi Kritis
+
+Action baru yang sekarang ter-log:
+
+| Action | Trigger |
+|---|---|
+| `auth.login.blocked` | Rate limit hit |
+| `branch.create/update/delete` | CRUD cabang |
+| `shift.create/update/delete` | CRUD shift |
+| `holiday.create/delete` | CRUD hari libur |
+| `announcement.create/update/delete` | CRUD CMS |
+| `employee.create/update/delete/resign` | CRUD pegawai (employee.update sertakan `branchChanged`, `shiftChanged`) |
+| `company.update` | Edit profil perusahaan |
+| `profile.password.changed/failed` | Ganti password sendiri |
+| `profile.bank.changed` | Update info bank di profil |
+| `leave.approved/rejected` | Keputusan cuti |
+| `overtime.approved/rejected` | Keputusan lembur |
+
+Semua label-nya sudah ditambah ke `ACTION_LABEL` di Security page.
+
+### 11.7 Validasi Business Rules
+
+#### Branches
+- `latitude` ∈ [-90, 90], `longitude` ∈ [-180, 180].
+- `radiusMeters` ≤ 100.000.
+- DELETE block jika ada pegawai aktif assigned.
+
+#### Shifts
+- Format `HH:mm` divalidate strict.
+- DELETE block jika ada pegawai assigned.
+
+#### Holidays
+- Format `YYYY-MM-DD` divalidate strict.
+
+#### Overtime apply
+- Tanggal harus dalam rentang -14 hari sampai +30 hari.
+- Durasi minimal 1 jam, maksimal 14 jam per pengajuan.
+
+#### Leave apply
+- `fromDate <= toDate`.
+- Tidak boleh overlap dengan leave existing (kecuali yang sudah rejected).
+
+### 11.8 SDK Methods Baru
+
+```ts
+api.adminCompany()
+api.adminCompanyUpdate(data)
+api.adminEmployeeResign(id, { resignDate, reason?, deactivateUser? })
+```

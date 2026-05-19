@@ -9,6 +9,11 @@ import { verifyPassword } from "@/server/auth/password";
 import { signJwt } from "@/server/auth/jwt";
 import { SESSION_COOKIE } from "@/server/auth/session";
 import { audit } from "@/server/auth/audit";
+import {
+  checkRateLimit,
+  recordFailedAttempt,
+  resetAttempts,
+} from "@/server/auth/rate-limit";
 import { ok, fail, handleError } from "@/server/api/respond";
 
 const Body = z.object({
@@ -19,32 +24,81 @@ const Body = z.object({
 export async function POST(req: NextRequest) {
   try {
     const body = Body.parse(await req.json());
+    const ip =
+      req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+      req.headers.get("x-real-ip") ||
+      "unknown";
+    const rateKey = `login:${ip}:${body.email.toLowerCase()}`;
+    const rl = checkRateLimit(rateKey);
+    if (!rl.allowed) {
+      audit({
+        action: "auth.login.blocked",
+        details: {
+          email: body.email,
+          reason: "rate_limit",
+          retryAfterSec: rl.retryAfterSec,
+        },
+        ip,
+        userAgent: req.headers.get("user-agent"),
+      });
+      return fail(
+        429,
+        `Terlalu banyak percobaan. Coba lagi dalam ${Math.ceil(
+          (rl.retryAfterSec ?? 1800) / 60
+        )} menit.`,
+        { retryAfterSec: rl.retryAfterSec }
+      );
+    }
+
     const [user] = await db
       .select()
       .from(schema.users)
       .where(eq(schema.users.email, body.email));
 
     if (!user || !user.active) {
+      const r = recordFailedAttempt(rateKey);
       audit({
         action: "auth.login.failed",
-        details: { email: body.email, reason: "not_found_or_inactive" },
-        ip: req.headers.get("x-forwarded-for"),
+        details: {
+          email: body.email,
+          reason: "not_found_or_inactive",
+          remaining: r.remaining,
+          blocked: r.blocked,
+        },
+        ip,
         userAgent: req.headers.get("user-agent"),
       });
       return fail(401, "Email atau password salah");
     }
     const valid = await verifyPassword(body.password, user.passwordHash);
     if (!valid) {
+      const r = recordFailedAttempt(rateKey);
       audit({
         companyId: user.companyId,
         userId: user.id,
         action: "auth.login.failed",
-        details: { email: body.email, reason: "wrong_password" },
-        ip: req.headers.get("x-forwarded-for"),
+        details: {
+          email: body.email,
+          reason: "wrong_password",
+          remaining: r.remaining,
+          blocked: r.blocked,
+        },
+        ip,
         userAgent: req.headers.get("user-agent"),
       });
+      if (r.blocked) {
+        return fail(
+          429,
+          `Terlalu banyak percobaan gagal. Akun terkunci ${Math.ceil(
+            (r.retryAfterSec ?? 1800) / 60
+          )} menit.`
+        );
+      }
       return fail(401, "Email atau password salah");
     }
+
+    // Success — reset rate counter
+    resetAttempts(rateKey);
 
     const [employee] = await db
       .select()
@@ -69,7 +123,7 @@ export async function POST(req: NextRequest) {
       userId: user.id,
       action: "auth.login.success",
       details: { email: body.email },
-      ip: req.headers.get("x-forwarded-for"),
+      ip,
       userAgent: req.headers.get("user-agent"),
     });
 
