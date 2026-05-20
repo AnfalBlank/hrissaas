@@ -347,6 +347,7 @@ function EmployeeFormModal({
     shiftId: "",
     baseSalary: 0,
     phone: "",
+    telegramChatId: "",
     status: "active",
     ptkpStatus: "TK/0",
     npwp: "",
@@ -391,6 +392,7 @@ function EmployeeFormModal({
         position: form.position,
         division: form.division,
         phone: form.phone,
+        telegramChatId: form.telegramChatId || undefined,
         branchId: form.branchId || null,
         shiftId: form.shiftId || null,
         baseSalary: Number(form.baseSalary) || 0,
@@ -499,6 +501,16 @@ function EmployeeFormModal({
               placeholder="08xxx atau 628xxx"
               value={form.phone ?? ""}
               onChange={(e) => setForm({ ...form, phone: e.target.value })}
+            />
+          </Field>
+          <Field label="Telegram Chat ID">
+            <input
+              className="input"
+              placeholder="Dapat dari bot /start (mis. 123456789)"
+              value={form.telegramChatId ?? ""}
+              onChange={(e) =>
+                setForm({ ...form, telegramChatId: e.target.value })
+              }
             />
           </Field>
           <Field label="Role">
