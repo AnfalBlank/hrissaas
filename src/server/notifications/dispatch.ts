@@ -1,10 +1,11 @@
 /**
  * Centralized notification dispatcher — writes to DB, emits via Socket.IO,
- * and optionally sends WhatsApp/email.
+ * and optionally sends WhatsApp + Telegram.
  */
 import { db, schema } from "@/server/db/client";
 import { emitToAdmins, emitToCompany } from "@/server/realtime/emitter";
 import { sendWhatsAppText } from "./whatsapp";
+import { sendTelegramText } from "./telegram";
 import { eq } from "drizzle-orm";
 
 export async function notify(opts: {
@@ -16,6 +17,7 @@ export async function notify(opts: {
   icon?: string;
   link?: string;
   whatsapp?: boolean;
+  telegram?: boolean;
 }) {
   const [row] = await db
     .insert(schema.notifications)
@@ -32,16 +34,25 @@ export async function notify(opts: {
 
   emitToCompany(opts.companyId, "notification", { userId: opts.userId, item: row });
 
-  if (opts.whatsapp) {
+  // External channel dispatch
+  const sendExternal = opts.whatsapp || opts.telegram;
+  if (sendExternal) {
     const [emp] = await db
       .select()
       .from(schema.employees)
       .where(eq(schema.employees.userId, opts.userId));
-    if (emp?.phone) {
-      sendWhatsAppText({
-        to: emp.phone,
-        text: `*${opts.title}*\n${opts.body ?? ""}`,
-      }).catch(() => {});
+
+    const message = `*${opts.title}*\n${opts.body ?? ""}`;
+
+    // WhatsApp
+    if (opts.whatsapp !== false && emp?.phone) {
+      sendWhatsAppText({ to: emp.phone, text: message }).catch(() => {});
+    }
+
+    // Telegram
+    if (opts.telegram !== false && emp?.telegramChatId) {
+      const htmlMsg = `<b>${opts.title}</b>\n${opts.body ?? ""}`;
+      sendTelegramText({ chatId: emp.telegramChatId, text: htmlMsg }).catch(() => {});
     }
   }
 

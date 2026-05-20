@@ -115,6 +115,7 @@ export const employees = sqliteTable(
     jkkClass: integer("jkk_class").default(1),
     bankName: text("bank_name"),
     bankAccount: text("bank_account"),
+    telegramChatId: text("telegram_chat_id"),
     joinDate: integer("join_date", { mode: "timestamp_ms" }),
     resignDate: integer("resign_date", { mode: "timestamp_ms" }),
     status: text("status").default("active"), // active|leave|inactive|resigned

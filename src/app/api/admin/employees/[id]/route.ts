@@ -22,6 +22,7 @@ const Patch = z.object({
   status: z.enum(["active", "leave", "inactive"]).optional(),
   bankName: z.string().optional(),
   bankAccount: z.string().optional(),
+  telegramChatId: z.string().optional(),
   role: z.enum(["employee", "supervisor", "hr", "owner"]).optional(),
   ptkpStatus: z
     .enum(["TK/0", "TK/1", "TK/2", "TK/3", "K/0", "K/1", "K/2", "K/3"])

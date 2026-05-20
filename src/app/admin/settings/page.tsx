@@ -102,6 +102,11 @@ export default function SettingsPage() {
           ok: status?.whatsapp,
         },
         {
+          l: "Telegram Bot",
+          v: status?.telegram ? "Connected" : "Not configured",
+          ok: status?.telegram,
+        },
+        {
           l: "Cloudflare R2",
           v: status?.r2 ? "Connected" : "Fallback (base64)",
           ok: status?.r2,

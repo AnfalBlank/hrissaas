@@ -174,7 +174,7 @@ export const api = {
       body: JSON.stringify(data),
     }),
   adminSystemStatus: () =>
-    request<{ r2: boolean; whatsapp: boolean; socketIO: boolean; jwt: boolean }>(
+    request<{ r2: boolean; whatsapp: boolean; telegram: boolean; socketIO: boolean; jwt: boolean }>(
       "/api/admin/system-status"
     ),
   adminEmployees: (q?: string) =>

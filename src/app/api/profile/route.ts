@@ -15,6 +15,7 @@ const Patch = z.object({
   avatarUrl: z.string().optional(),
   bankName: z.string().optional(),
   bankAccount: z.string().optional(),
+  telegramChatId: z.string().optional(),
 });
 
 export async function PATCH(req: NextRequest) {
