@@ -3,18 +3,32 @@ import { Providers } from "@/components/Providers";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Manggala Attendance System — Modern HRIS for Modern Teams",
+  metadataBase: new URL("https://hris.manggala.biz.id"),
+  title: {
+    default:
+      "Manggala HRIS — Sistem Absensi & Payroll Otomatis untuk Perusahaan Indonesia",
+    template: "%s | Manggala HRIS",
+  },
   description:
-    "PWA HRIS Attendance Platform with face recognition, GPS validation, payroll, and realtime monitoring.",
+    "Platform HRIS lengkap dengan absensi face recognition, GPS geofencing, payroll otomatis sesuai PPh 21 TER 2024, BPJS, THR, dan lembur Permenaker. Demo gratis hari ini via WhatsApp.",
   manifest: "/manifest.webmanifest",
-  applicationName: "MAS",
+  applicationName: "Manggala HRIS",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "MAS",
+    title: "Manggala HRIS",
   },
   icons: {
     icon: "/favicon.svg",
+    apple: "/logo.png",
+  },
+  authors: [{ name: "PT Manggala Utama Indonesia" }],
+  creator: "PT Manggala Utama Indonesia",
+  publisher: "PT Manggala Utama Indonesia",
+  formatDetection: {
+    email: false,
+    address: false,
+    telephone: false,
   },
 };
 
