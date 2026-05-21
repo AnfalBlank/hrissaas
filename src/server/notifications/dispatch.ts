@@ -46,13 +46,13 @@ export async function notify(opts: {
 
     // WhatsApp
     if (opts.whatsapp !== false && emp?.phone) {
-      sendWhatsAppText({ to: emp.phone, text: message }).catch(() => {});
+      sendWhatsAppText({ to: emp.phone, text: message, companyId: opts.companyId }).catch(() => {});
     }
 
     // Telegram
     if (opts.telegram !== false && emp?.telegramChatId) {
       const htmlMsg = `<b>${opts.title}</b>\n${opts.body ?? ""}`;
-      sendTelegramText({ chatId: emp.telegramChatId, text: htmlMsg }).catch(() => {});
+      sendTelegramText({ chatId: emp.telegramChatId, text: htmlMsg, companyId: opts.companyId }).catch(() => {});
     }
   }
 

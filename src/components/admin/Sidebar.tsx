@@ -47,6 +47,7 @@ const NAV: {
       { href: "/admin/branches", label: "Cabang & GPS", icon: "buildings" },
       { href: "/admin/cms", label: "CMS", icon: "newspaper" },
       { href: "/admin/notifications", label: "Notifikasi", icon: "bell" },
+      { href: "/admin/integrations", label: "Integrasi", icon: "link" },
       { href: "/admin/security", label: "Keamanan", icon: "shield" },
       { href: "/admin/settings", label: "Pengaturan", icon: "gear" },
     ],

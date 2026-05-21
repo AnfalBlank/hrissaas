@@ -427,6 +427,10 @@ export const payrollSettings = sqliteTable("payroll_settings", {
   // Company tax info
   companyNpwp: text("company_npwp"),
   companyTaxAddress: text("company_tax_address"),
+  // Integrations (simpan di DB agar bisa diatur dari UI admin)
+  telegramBotToken: text("telegram_bot_token"),
+  whatsappToken: text("whatsapp_token"),
+  whatsappPhoneId: text("whatsapp_phone_id"),
   updatedAt: ts("updated_at"),
 });
 

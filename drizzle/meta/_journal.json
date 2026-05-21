@@ -50,6 +50,13 @@
       "when": 1779259091915,
       "tag": "0006_green_phalanx",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1779270235046,
+      "tag": "0007_cynical_namorita",
+      "breakpoints": true
     }
   ]
 }

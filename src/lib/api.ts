@@ -417,6 +417,30 @@ export const api = {
       body: JSON.stringify({ period, payDate }),
     }),
 
+  // Integrations
+  adminIntegrations: () =>
+    request<{
+      telegramBotToken: string | null;
+      telegramConfigured: boolean;
+      whatsappToken: string | null;
+      whatsappPhoneId: string | null;
+      whatsappConfigured: boolean;
+    }>("/api/admin/integrations"),
+  adminIntegrationsUpdate: (data: {
+    telegramBotToken?: string | null;
+    whatsappToken?: string | null;
+    whatsappPhoneId?: string | null;
+  }) =>
+    request("/api/admin/integrations", {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
+  adminIntegrationsTestTelegram: (token: string) =>
+    request<{ ok: boolean; botName?: string; error?: string }>(
+      "/api/admin/integrations",
+      { method: "POST", body: JSON.stringify({ token }) }
+    ),
+
   // Chat (1-1 antar pegawai)
   contacts: () => request<{ items: any[] }>("/api/contacts"),
   conversations: () => request<{ items: any[] }>("/api/conversations"),
