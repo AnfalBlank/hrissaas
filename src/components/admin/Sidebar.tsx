@@ -90,7 +90,7 @@ export function Sidebar() {
           <Logo size={36} />
           <div>
             <p className="font-display text-sm font-extrabold leading-tight">
-              Manggala
+              MAS
             </p>
             <p className="text-[10px] text-ink-400">Admin Console</p>
           </div>

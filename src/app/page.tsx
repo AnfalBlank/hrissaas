@@ -20,7 +20,7 @@ import {
 
 const WA_NUMBER = "6287884241703";
 const WA_LINK = `https://wa.me/${WA_NUMBER}?text=${encodeURIComponent(
-  "Halo Manggala HRIS, saya tertarik untuk demo dan konsultasi sistem HRIS untuk perusahaan kami."
+  "Halo MAS (Manggala Attendant System), saya tertarik untuk demo dan konsultasi sistem HRIS untuk perusahaan kami."
 )}`;
 const EMAIL = "admin@manggala-utama.id";
 const IG = "manggalautamaindonesia";
@@ -28,9 +28,9 @@ const COMPANY = "PT Manggala Utama Indonesia";
 
 export const metadata: Metadata = {
   title:
-    "Manggala HRIS — Sistem Absensi & Payroll Otomatis untuk Perusahaan Indonesia",
+    "MAS — Manggala Attendant System | Sistem Absensi & Payroll Otomatis Indonesia",
   description:
-    "Platform HRIS lengkap dengan absensi face recognition, GPS geofencing, payroll otomatis sesuai PPh 21 TER 2024, BPJS, THR, dan lembur Permenaker 102/2004. Cocok untuk UKM hingga enterprise di Indonesia. Demo gratis hari ini.",
+    "MAS (Manggala Attendant System) — platform HRIS lengkap dengan absensi face recognition, GPS geofencing, payroll otomatis sesuai PPh 21 TER 2024, BPJS, THR, dan lembur Permenaker 102/2004. Managed by PT Manggala Utama Indonesia. Demo gratis hari ini.",
   keywords: [
     "HRIS Indonesia",
     "absensi online",
@@ -49,16 +49,16 @@ export const metadata: Metadata = {
   creator: COMPANY,
   publisher: COMPANY,
   openGraph: {
-    title: "Manggala HRIS — HRIS Modern untuk Perusahaan Indonesia",
+    title: "MAS — Manggala Attendant System | HRIS Indonesia",
     description:
-      "Absensi face recognition + GPS, payroll otomatis PPh 21 TER, BPJS lengkap, lembur, cuti, THR. Demo gratis via WhatsApp.",
+      "Absensi face recognition + GPS, payroll otomatis PPh 21 TER, BPJS lengkap, lembur, cuti, THR. Managed by PT Manggala Utama Indonesia.",
     type: "website",
     locale: "id_ID",
-    siteName: "Manggala HRIS",
+    siteName: "MAS — Manggala Attendant System",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Manggala HRIS — HRIS Modern untuk Perusahaan Indonesia",
+    title: "MAS — Manggala Attendant System | HRIS Indonesia",
     description:
       "Absensi face recognition + GPS, payroll otomatis PPh 21 TER, BPJS lengkap, lembur, cuti, THR.",
   },
@@ -76,7 +76,8 @@ export default function LandingPage() {
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "SoftwareApplication",
-    name: "Manggala HRIS",
+    name: "MAS — Manggala Attendant System",
+    alternateName: "MAS",
     applicationCategory: "BusinessApplication",
     operatingSystem: "Web Browser, iOS, Android (PWA)",
     offers: {
@@ -143,7 +144,7 @@ function Header() {
         <Link href="/" className="flex items-center gap-2">
           <Logo size={36} />
           <span className="font-display text-lg font-extrabold tracking-tight">
-            Manggala<span className="text-brand-600">.</span>HRIS
+            MAS<span className="text-brand-600">.</span>
           </span>
         </Link>
         <nav className="hidden gap-8 md:flex text-sm font-medium text-ink-600">
@@ -673,7 +674,7 @@ function FAQ() {
     },
     {
       q: "Bisa di-akses dari HP atau hanya laptop?",
-      a: "Bisa keduanya. Manggala HRIS adalah Progressive Web App (PWA) — bisa di-install di Android/iOS sebagai aplikasi tanpa download dari Play Store/App Store, dan tetap responsive di laptop/desktop.",
+      a: "Bisa keduanya. MAS adalah Progressive Web App (PWA) — bisa di-install di Android/iOS sebagai aplikasi tanpa download dari Play Store/App Store, dan tetap responsive di laptop/desktop.",
     },
     {
       q: "Apakah pegawai bisa absen di luar kantor?",
@@ -799,13 +800,13 @@ function Footer() {
             <Link href="/" className="flex items-center gap-2">
               <Logo size={36} />
               <span className="font-display text-lg font-extrabold">
-                Manggala<span className="text-brand-600">.</span>HRIS
+                MAS<span className="text-brand-600">.</span>
               </span>
             </Link>
             <p className="mt-4 text-sm text-ink-600 max-w-md">
-              Platform HRIS modern untuk perusahaan Indonesia. Compliant dengan
-              regulasi pajak &amp; ketenagakerjaan terbaru. Dibuat khusus untuk
-              kebutuhan UKM hingga enterprise di tanah air.
+              MAS (Manggala Attendant System) — platform HRIS modern untuk
+              perusahaan Indonesia. Compliant dengan regulasi pajak &amp;
+              ketenagakerjaan terbaru. Managed by {COMPANY}.
             </p>
             <div className="mt-5 space-y-2 text-sm">
               <a
@@ -893,7 +894,7 @@ function Footer() {
             © {new Date().getFullYear()} {COMPANY}. All rights reserved.
           </p>
           <p className="text-xs text-ink-500">
-            Built &amp; supported by{" "}
+            Built &amp; managed by{" "}
             <span className="font-bold text-ink-700">{COMPANY}</span> 🇮🇩
           </p>
         </div>

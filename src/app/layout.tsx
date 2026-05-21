@@ -6,17 +6,17 @@ export const metadata: Metadata = {
   metadataBase: new URL("https://hris.manggala.biz.id"),
   title: {
     default:
-      "Manggala HRIS — Sistem Absensi & Payroll Otomatis untuk Perusahaan Indonesia",
-    template: "%s | Manggala HRIS",
+      "MAS — Manggala Attendant System | Sistem Absensi & Payroll Otomatis Indonesia",
+    template: "%s | MAS",
   },
   description:
-    "Platform HRIS lengkap dengan absensi face recognition, GPS geofencing, payroll otomatis sesuai PPh 21 TER 2024, BPJS, THR, dan lembur Permenaker. Demo gratis hari ini via WhatsApp.",
+    "MAS (Manggala Attendant System) — platform HRIS lengkap dengan absensi face recognition, GPS geofencing, payroll otomatis sesuai PPh 21 TER 2024, BPJS, THR, dan lembur Permenaker. Managed by PT Manggala Utama Indonesia.",
   manifest: "/manifest.webmanifest",
-  applicationName: "Manggala HRIS",
+  applicationName: "MAS",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "Manggala HRIS",
+    title: "MAS",
   },
   icons: {
     icon: "/favicon.svg",

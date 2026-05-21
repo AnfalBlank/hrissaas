@@ -1,7 +1,7 @@
 {
-  "name": "Manggala Attendance System",
+  "name": "MAS — Manggala Attendant System",
   "short_name": "MAS",
-  "description": "HRIS Attendance PWA Platform with face recognition, GPS validation, and realtime monitoring.",
+  "description": "Platform HRIS dengan absensi face recognition, GPS geofencing, payroll otomatis. Managed by PT Manggala Utama Indonesia.",
   "start_url": "/app",
   "display": "standalone",
   "background_color": "#f7f7fb",
