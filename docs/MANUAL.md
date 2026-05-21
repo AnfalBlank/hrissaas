@@ -1,8 +1,9 @@
-# Manual Pengguna — Manggala HRIS
+# Manual Pengguna — MAS (Manggala Attendant System)
 
-**Versi:** 2.0.0  
+**Versi:** 2.1.0  
 **Terakhir diperbarui:** Mei 2026  
-**Platform:** Progressive Web App (PWA)
+**Platform:** Progressive Web App (PWA)  
+**Managed by:** PT Manggala Utama Indonesia
 
 ---
 
@@ -21,9 +22,11 @@
 
 ## 1. Pendahuluan
 
-### 1.1 Tentang Sistem
+### 1.1 Tentang MAS
 
-Manggala HRIS adalah platform Human Resource Information System berbasis web untuk perusahaan di Indonesia. Fitur utama:
+MAS (Manggala Attendant System) adalah platform Human Resource Information System berbasis web untuk perusahaan di Indonesia, dikembangkan dan dikelola oleh **PT Manggala Utama Indonesia**.
+
+Fitur utama:
 
 - **Absensi online** dengan liveness detection (blink + motion), GPS geofencing, QR code
 - **Manajemen cuti** dengan validasi kuota otomatis + overlap detection
@@ -32,9 +35,18 @@ Manggala HRIS adalah platform Human Resource Information System berbasis web unt
 - **Chat antar pegawai** (P2P dengan file attachment)
 - **Live monitoring** peta real-time lokasi absensi
 - **AI Analytics** tren kehadiran + insight prediktif
+- **Notifikasi dual channel** — WhatsApp + Telegram
 - **Multi-tenant** dengan isolasi data per perusahaan
 
-### 1.2 Tech Stack
+### 1.2 Kontak & Support
+
+| Channel | Detail |
+|---|---|
+| WhatsApp | +62 878-8424-1703 |
+| Email | admin@manggala-utama.id |
+| Instagram | @manggalautamaindonesia |
+
+### 1.3 Tech Stack
 
 | Komponen | Teknologi |
 |---|---|
@@ -43,13 +55,13 @@ Manggala HRIS adalah platform Human Resource Information System berbasis web unt
 | Database | Turso (libSQL) via Drizzle ORM |
 | Realtime | Socket.IO (WebSocket + polling) |
 | Storage | Cloudflare R2 (fallback base64) |
-| Notifikasi | WhatsApp Cloud API + in-app push |
+| Notifikasi | WhatsApp Cloud API + Telegram Bot + in-app push |
 | Auth | JWT HS256 + httpOnly cookies + auto-refresh 6 jam |
 | Maps | Leaflet + OpenStreetMap |
 | PDF/Excel | pdfkit, exceljs, jspdf, html-to-image |
 | Liveness | Frame diff analysis (motion + blink detection) |
 
-### 1.3 Roles
+### 1.4 Roles
 
 | Role | Akses |
 |---|---|
@@ -157,15 +169,24 @@ Hanya tampilkan pegawai **aktif** (resigned tidak muncul).
 
 ### 2.12 Notifikasi (`/admin/notifications`)
 
-- Template notifikasi (WhatsApp + Push)
-- Status integrasi: WhatsApp, Socket.IO, Email SMTP
+- Template notifikasi (WhatsApp + Telegram + Push)
+- Status integrasi: WhatsApp, Telegram, Socket.IO, Email SMTP
 
-### 2.13 Keamanan (`/admin/security`)
+### 2.13 Integrasi (`/admin/integrations`)
+
+Halaman setup token langsung dari UI:
+- **Telegram Bot**: input token, test koneksi (verifikasi via getMe API), simpan
+- **WhatsApp Cloud API**: input Access Token + Phone Number ID, simpan
+- **Status overview**: 4 badge (Telegram, WhatsApp, R2, Socket.IO) active/off
+- Token di-mask saat ditampilkan untuk keamanan
+- Validasi token sebelum save
+
+### 2.14 Keamanan (`/admin/security`)
 
 - **Status fitur keamanan**: 10 item (GPS, Liveness, Rate Limit, Audit Log, JWT, Multi-tenant, bcrypt, Anti Mock GPS, Redis Rate Limit, WhatsApp). Masing-masing dengan badge Aktif/Off + label Built-in/Env config.
 - **Audit Logs viewer**: pagination (25 per page), filter by action type (dropdown 40+ actions), filter by user email, total events hari ini.
 
-### 2.14 Pengaturan (`/admin/settings`)
+### 2.15 Pengaturan (`/admin/settings`)
 
 - **Edit Profil Perusahaan**: nama, slug, domain, plan, timezone, logo (modal edit)
 - Card-card navigasi ke: Payroll Settings, Holidays, Branches, Komponen Payroll, Keamanan, CMS
@@ -545,7 +566,27 @@ Setiap perubahan pada payroll dicatat di tabel `payroll_revisions`:
 
 ## 7. Integrasi & Notifikasi
 
-### 7.1 Socket.IO (Realtime)
+### 7.1 Halaman Integrasi (`/admin/integrations`)
+
+Admin bisa setup token langsung dari UI tanpa perlu edit env vars:
+
+**Telegram Bot:**
+1. Buka Telegram → cari @BotFather → kirim `/newbot`
+2. Ikuti instruksi → dapat token (format: `123456789:ABCdef...`)
+3. Paste token di halaman Integrasi → klik "Test Koneksi" → verifikasi nama bot
+4. Simpan
+5. Pegawai chat ke bot → kirim `/start` → catat chat_id
+6. Admin set chat_id di form edit pegawai (field "Telegram Chat ID")
+
+**WhatsApp Cloud API:**
+1. Buka Meta Business Suite → WhatsApp → API Setup
+2. Buat Permanent Access Token
+3. Catat Phone Number ID
+4. Paste keduanya di halaman Integrasi → Simpan
+
+Token disimpan di database (encrypted at rest via Turso). Bisa juga via env vars (`TELEGRAM_BOT_TOKEN`, `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`) — env vars override DB.
+
+### 7.2 Socket.IO (Realtime)
 
 Events yang di-broadcast:
 - `attendance:check-in`, `attendance:check-out`
@@ -556,26 +597,30 @@ Events yang di-broadcast:
 
 Koneksi via custom server (`server.js`) di port 3000 path `/api/socket`.
 
-### 7.2 WhatsApp Cloud API
+### 7.3 Dual Channel Notifikasi
 
-Notifikasi dikirim ke pegawai untuk:
+Setiap notifikasi penting otomatis dikirim ke **kedua channel** jika data tersedia:
+- **WhatsApp** — jika pegawai punya field `phone` + WhatsApp token configured
+- **Telegram** — jika pegawai punya field `telegramChatId` + Telegram bot token configured
+- **In-app push** — selalu (via Socket.IO + DB notifications)
+
+Notifikasi yang dikirim:
 - Telat masuk
 - Cuti disetujui/ditolak
 - Lembur disetujui/ditolak
 - Slip gaji tersedia
 - THR ditetapkan
 - Payroll dibayar
+- Check-out summary jam kerja
 
-Konfigurasi: env `WHATSAPP_TOKEN` + `WHATSAPP_PHONE_ID`. Mock mode jika tidak di-set.
-
-### 7.3 Cloudflare R2
+### 7.4 Cloudflare R2
 
 Upload foto selfie absensi + avatar profil + attachment cuti/chat.
 - Key format: `{companyId}/{category}/{employeeId}/{filename}`
 - Fallback: base64 data URL jika R2 tidak dikonfigurasi
 - Konfigurasi: env `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`
 
-### 7.4 Deep-link Notifikasi
+### 7.5 Deep-link Notifikasi
 
 Setiap notifikasi punya field `link` yang mengarahkan ke halaman terkait:
 - Telat → `/app/history`
@@ -641,4 +686,5 @@ Setiap notifikasi punya field `link` yang mengarahkan ke halaman terkait:
 
 ---
 
-*Dokumen ini diperbarui Mei 2026. Untuk informasi terbaru, hubungi tim pengembang.*
+*MAS (Manggala Attendant System) v2.1.0 — Managed by PT Manggala Utama Indonesia.*  
+*Dokumen ini diperbarui Mei 2026. Untuk informasi terbaru, hubungi admin@manggala-utama.id atau WhatsApp +62 878-8424-1703.*
