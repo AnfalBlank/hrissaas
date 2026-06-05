@@ -13,6 +13,8 @@ import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { api } from "@/lib/api";
+import { calculateDailyOvertimePay, formatHours } from "@/lib/duration";
+import { formatCurrency } from "@/lib/utils";
 import { Plus, Trash2 } from "lucide-react";
 
 export default function OvertimePage() {
@@ -24,6 +26,11 @@ export default function OvertimePage() {
     queryKey: ["overtime-me"],
     queryFn: () => api.overtimeMe(),
   });
+  const { data: meData } = useQuery({
+    queryKey: ["me"],
+    queryFn: () => api.me(),
+  });
+  const baseSalary = meData?.employee?.baseSalary ?? 0;
 
   const cancel = useMutation({
     mutationFn: (id: string) => api.cancelOvertime(id),
@@ -78,44 +85,84 @@ export default function OvertimePage() {
                 : l.status === "rejected"
                   ? "danger"
                   : "warning";
-            const label =
+            const labelStatus =
               l.status === "approved"
                 ? "Disetujui"
                 : l.status === "rejected"
                   ? "Ditolak"
                   : "Menunggu";
+
+            // Hitung estimasi pendapatan
+            const monthlyGross = baseSalary + Math.round(baseSalary * 0.27);
+            const otCalc = baseSalary
+              ? calculateDailyOvertimePay({
+                  hours: l.hours || 0,
+                  monthlyGross,
+                  isHoliday: !!l.isHoliday,
+                })
+              : null;
+
             return (
               <li
                 key={l.id}
-                className="flex items-center justify-between rounded-2xl bg-white p-3 shadow-soft border border-ink-100"
+                className="rounded-2xl bg-white p-3 shadow-soft border border-ink-100"
               >
-                <div className="flex items-center gap-3 min-w-0">
-                  <Icon3D name="fire" size={48} />
-                  <div className="min-w-0">
-                    <p className="font-semibold truncate">
-                      {l.date} · {l.hours}j
-                    </p>
-                    <p className="text-xs text-ink-500">
-                      {l.startTime} - {l.endTime}
-                    </p>
-                    {l.description && (
-                      <p className="text-[10px] text-ink-400 truncate">
-                        {l.description}
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-start gap-3 min-w-0">
+                    <Icon3D name="fire" size={48} />
+                    <div className="min-w-0">
+                      <p className="font-semibold truncate">
+                        {l.date} · {formatHours(l.hours || 0)}
                       </p>
+                      <p className="text-xs text-ink-500">
+                        {l.startTime} - {l.endTime}
+                        {l.isHoliday && (
+                          <span className="ml-2 rounded bg-rose-100 px-1.5 text-[9px] font-bold text-rose-700">
+                            HARI LIBUR
+                          </span>
+                        )}
+                      </p>
+                      {l.description && (
+                        <p className="text-[10px] text-ink-400 line-clamp-2 mt-0.5">
+                          {l.description}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Badge variant={variant}>{labelStatus}</Badge>
+                    {l.status === "pending" && (
+                      <button
+                        onClick={() => setCancelId(l.id)}
+                        className="rounded-lg p-1.5 text-danger-600 hover:bg-danger-500/10"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
                     )}
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Badge variant={variant}>{label}</Badge>
-                  {l.status === "pending" && (
-                    <button
-                      onClick={() => setCancelId(l.id)}
-                      className="rounded-lg p-1.5 text-danger-600 hover:bg-danger-500/10"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  )}
-                </div>
+
+                {/* Estimasi pendapatan */}
+                {otCalc && otCalc.pay > 0 && l.status !== "rejected" && (
+                  <div className="mt-2 rounded-xl bg-amber-50 p-2 text-[11px]">
+                    <div className="flex items-center justify-between">
+                      <span className="text-amber-700">
+                        Estimasi pendapatan {l.status === "approved" ? "(approved)" : "(jika disetujui)"}
+                      </span>
+                      <span className="font-mono font-bold text-amber-900">
+                        {formatCurrency(otCalc.pay)}
+                      </span>
+                    </div>
+                    <div className="mt-1 space-y-0.5 text-[10px] text-amber-800">
+                      {otCalc.breakdown.map((b, i) => (
+                        <div key={i} className="flex justify-between">
+                          <span>{b.label} × {b.hours.toFixed(2)}j</span>
+                          <span className="font-mono">{formatCurrency(b.subtotal)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </li>
             );
           })}

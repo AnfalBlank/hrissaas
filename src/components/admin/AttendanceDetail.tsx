@@ -5,6 +5,8 @@ import { Modal } from "@/components/ui/Modal";
 import { Badge } from "@/components/ui/Badge";
 import { Icon3D } from "@/components/Icon3D";
 import { Camera, MapPin, ExternalLink, LogIn, LogOut } from "lucide-react";
+import { formatMinutes, calculateDailyOvertimePay } from "@/lib/duration";
+import { formatCurrency } from "@/lib/utils";
 
 const PointMap = dynamic(
   () => import("@/components/admin/LiveMap").then((m) => m.PointMap),
@@ -49,7 +51,7 @@ export function AttendanceDetail({
     attendance.status === "present"
       ? "Hadir"
       : attendance.status === "late"
-        ? `Telat ${attendance.lateMinutes ?? 0}m`
+        ? `Telat ${formatMinutes(attendance.lateMinutes ?? 0)}`
         : attendance.status;
 
   const hasCheckInGps =
@@ -95,7 +97,7 @@ export function AttendanceDetail({
             label="Lembur"
             value={
               attendance.overtimeMinutes
-                ? `${attendance.overtimeMinutes} menit`
+                ? formatMinutes(attendance.overtimeMinutes)
                 : "—"
             }
           />
@@ -180,7 +182,9 @@ export function AttendanceDetail({
             <div>
               <span className="text-ink-400">Telat:</span>{" "}
               <span className="font-semibold">
-                {attendance.lateMinutes ? `${attendance.lateMinutes}m` : "Tidak"}
+                {attendance.lateMinutes
+                  ? formatMinutes(attendance.lateMinutes)
+                  : "Tidak"}
               </span>
             </div>
             <div>
@@ -284,7 +288,7 @@ export function AttendanceDetail({
                   <span className="text-ink-400">Lembur:</span>{" "}
                   <span className="font-semibold">
                     {attendance.overtimeMinutes
-                      ? `${attendance.overtimeMinutes}m`
+                      ? formatMinutes(attendance.overtimeMinutes)
                       : "Tidak"}
                   </span>
                 </div>
@@ -297,6 +301,14 @@ export function AttendanceDetail({
                   </span>
                 </div>
               </div>
+
+              {/* Estimasi Pendapatan Lembur */}
+              {attendance.overtimeMinutes > 0 && attendance.baseSalary > 0 && (
+                <OvertimeEstimate
+                  overtimeMinutes={attendance.overtimeMinutes}
+                  baseSalary={attendance.baseSalary}
+                />
+              )}
             </>
           ) : (
             <p className="text-xs text-ink-500">
@@ -329,6 +341,62 @@ function Detail({
         {label}
       </p>
       <div className="mt-1 text-sm font-semibold">{value}</div>
+    </div>
+  );
+}
+
+
+function OvertimeEstimate({
+  overtimeMinutes,
+  baseSalary,
+}: {
+  overtimeMinutes: number;
+  baseSalary: number;
+}) {
+  const hours = overtimeMinutes / 60;
+  // Anggap allowance default 27% untuk estimasi monthlyGross
+  const monthlyGross = baseSalary + Math.round(baseSalary * 0.27);
+  const result = calculateDailyOvertimePay({
+    hours,
+    monthlyGross,
+    isHoliday: false,
+  });
+
+  return (
+    <div className="mt-3 rounded-xl bg-amber-50 border border-amber-200 p-3 text-xs">
+      <p className="font-bold text-amber-800 mb-2">
+        💰 Estimasi Pendapatan Lembur Hari Ini
+      </p>
+      <div className="space-y-1 text-amber-900">
+        <p>
+          <span className="text-amber-600">Durasi lembur:</span>{" "}
+          <strong>{formatMinutes(overtimeMinutes)}</strong> ({hours.toFixed(2)} jam)
+        </p>
+        <p>
+          <span className="text-amber-600">Tarif per jam:</span>{" "}
+          <strong>{formatCurrency(result.hourlyRate)}</strong>
+        </p>
+        <div className="pt-1 border-t border-amber-200">
+          {result.breakdown.map((b: any, i: number) => (
+            <div key={i} className="flex justify-between">
+              <span>
+                {b.label} × {b.hours.toFixed(2)}j
+              </span>
+              <span className="font-mono font-semibold">
+                {formatCurrency(b.subtotal)}
+              </span>
+            </div>
+          ))}
+          <div className="flex justify-between mt-1 pt-1 border-t border-amber-300 font-bold">
+            <span>Total Pendapatan Lembur</span>
+            <span className="font-mono">{formatCurrency(result.pay)}</span>
+          </div>
+        </div>
+      </div>
+      <p className="mt-2 text-[10px] text-amber-700 italic">
+        * Estimasi berdasar Permenaker 102/2004 (weekday). Untuk lembur hari libur
+        gunakan menu Pengajuan Lembur dengan flag holiday.
+      </p>
     </div>
   );
 }

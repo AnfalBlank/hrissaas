@@ -15,6 +15,7 @@ import { AttendanceDetail } from "@/components/admin/AttendanceDetail";
 import { api } from "@/lib/api";
 import { useRealtime } from "@/lib/realtime";
 import { downloadFile } from "@/lib/download";
+import { formatMinutes } from "@/lib/duration";
 import {
   Edit2,
   Eye,
@@ -205,7 +206,7 @@ export default function AttendanceMgmt() {
                     r.status === "present"
                       ? "Hadir"
                       : r.status === "late"
-                        ? `Telat ${r.lateMinutes}m`
+                        ? `Telat ${formatMinutes(r.lateMinutes)}`
                         : r.status === "leave"
                           ? "Cuti"
                           : r.status === "sick"

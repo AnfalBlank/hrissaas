@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { PageHeader } from "@/components/employee/PageHeader";
 import { api } from "@/lib/api";
 import { runLivenessDetection, type LivenessResult } from "@/lib/liveness";
+import { formatMinutes } from "@/lib/duration";
 import {
   CheckCircle2,
   Eye,
@@ -506,7 +507,7 @@ export default function AttendancePage() {
                 variant={result?.status === "late" ? "warning" : "success"}
               >
                 {result?.status === "late"
-                  ? `Telat ${result.lateMinutes}m`
+                  ? `Telat ${formatMinutes(result.lateMinutes)}`
                   : action === "checkin"
                     ? "Tepat waktu"
                     : "Selesai"}

@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { downloadFile } from "@/lib/download";
+import { formatMinutes } from "@/lib/duration";
 import { FileSpreadsheet, FileText, Filter } from "lucide-react";
 
 export default function HistoryPage() {
@@ -96,7 +97,7 @@ export default function HistoryPage() {
               r.status === "leave" || r.status === "sick" ? "brand" : "default";
             const label =
               r.status === "present" ? "Tepat Waktu" :
-              r.status === "late" ? `Telat ${r.lateMinutes}m` :
+              r.status === "late" ? `Telat ${formatMinutes(r.lateMinutes)}` :
               r.status === "leave" ? "Cuti" :
               r.status === "sick" ? "Sakit" : r.status;
             return (

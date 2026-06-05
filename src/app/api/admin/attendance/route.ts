@@ -42,6 +42,7 @@ export async function GET(req: NextRequest) {
         division: schema.employees.division,
         position: schema.employees.position,
         avatarUrl: schema.employees.avatarUrl,
+        baseSalary: schema.employees.baseSalary,
         branchName: schema.branches.name,
         branchLatitude: schema.branches.latitude,
         branchLongitude: schema.branches.longitude,
