@@ -3,6 +3,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState } from "react";
 import { useSessionRefresh } from "@/lib/use-session-refresh";
+import { ToastProvider } from "@/components/ui/Toast";
 
 declare global {
   interface Window {
@@ -32,5 +33,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
   // Silent JWT refresh setiap 6 jam + saat mount (update branchId/shiftId)
   useSessionRefresh();
 
-  return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+  return (
+    <QueryClientProvider client={client}>
+      <ToastProvider>{children}</ToastProvider>
+    </QueryClientProvider>
+  );
 }

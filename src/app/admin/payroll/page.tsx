@@ -11,6 +11,7 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { api } from "@/lib/api";
 import { downloadFile } from "@/lib/download";
 import { formatCurrency } from "@/lib/utils";
+import { useToast } from "@/components/ui/Toast";
 import {
   CheckCircle,
   Eye,
@@ -30,6 +31,7 @@ function currentPeriod() {
 
 export default function PayrollAdmin() {
   const qc = useQueryClient();
+  const toast = useToast();
   const [period, setPeriod] = useState(currentPeriod());
   const { data } = useQuery({
     queryKey: ["admin-payroll", period],
@@ -40,8 +42,9 @@ export default function PayrollAdmin() {
     mutationFn: () => api.adminGeneratePayroll(period),
     onSuccess: (res: any) => {
       qc.invalidateQueries({ queryKey: ["admin-payroll", period] });
-      if (res?.message) alert(res.message);
+      toast.success("Payroll digenerate", res?.message ?? `Periode ${period} selesai.`);
     },
+    onError: (e: any) => toast.error("Gagal generate payroll", e.message),
   });
 
   const generateThr = useMutation({
@@ -49,15 +52,22 @@ export default function PayrollAdmin() {
     onSuccess: (res: any) => {
       qc.invalidateQueries({ queryKey: ["admin-payroll", period] });
       qc.invalidateQueries({ queryKey: ["payroll-components"] });
-      alert(res?.message ?? "THR berhasil di-generate");
+      toast.success("THR digenerate", res?.message ?? "THR berhasil di-generate.");
     },
+    onError: (e: any) => toast.error("Gagal generate THR", e.message),
   });
 
   const update = useMutation({
     mutationFn: (vars: { id: string; data: any }) =>
       api.adminPayrollUpdate(vars.id, vars.data),
-    onSuccess: () =>
-      qc.invalidateQueries({ queryKey: ["admin-payroll", period] }),
+    onSuccess: (_res, vars) => {
+      qc.invalidateQueries({ queryKey: ["admin-payroll", period] });
+      const st = vars.data?.status;
+      if (st === "approved") toast.success("Payroll disetujui", "Status berubah ke approved.");
+      else if (st === "paid") toast.success("Payroll dibayar", "Pegawai mendapat notifikasi.");
+      else toast.success("Payroll diperbarui");
+    },
+    onError: (e: any) => toast.error("Gagal update payroll", e.message),
   });
 
   const remove = useMutation({
@@ -65,7 +75,9 @@ export default function PayrollAdmin() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin-payroll", period] });
       setDeleteId(null);
+      toast.success("Payroll dihapus");
     },
+    onError: (e: any) => toast.error("Gagal hapus payroll", e.message),
   });
 
   const [exporting, setExporting] = useState<"" | "pdf" | "xlsx">("");

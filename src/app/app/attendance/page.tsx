@@ -10,6 +10,7 @@ import { PageHeader } from "@/components/employee/PageHeader";
 import { api } from "@/lib/api";
 import { runLivenessDetection, type LivenessResult } from "@/lib/liveness";
 import { formatMinutes } from "@/lib/duration";
+import { useToast } from "@/components/ui/Toast";
 import {
   CheckCircle2,
   Eye,
@@ -24,6 +25,7 @@ type Step = "intro" | "camera" | "liveness" | "scanning" | "success" | "error";
 export default function AttendancePage() {
   const router = useRouter();
   const qc = useQueryClient();
+  const toast = useToast();
 
   const { data: attData } = useQuery({
     queryKey: ["attendance-me"],
@@ -195,6 +197,22 @@ export default function AttendancePage() {
         setResult(data);
         setStep("success");
         qc.invalidateQueries({ queryKey: ["attendance-me"] });
+
+        // Toast notif
+        if (action === "checkin") {
+          const isLate = (data as any)?.status === "late";
+          toast.success(
+            "Berhasil absen masuk! 👋",
+            isLate
+              ? `Anda tercatat telat ${formatMinutes((data as any).lateMinutes)}. Semangat bekerja!`
+              : "Tepat waktu. Selamat bekerja, semoga harimu produktif!"
+          );
+        } else {
+          toast.success(
+            "Berhasil absen pulang! 🏠",
+            "Terima kasih atas kerja kerasmu hari ini. Selamat beristirahat!"
+          );
+        }
       } catch (e: any) {
         setErrorMsg(e.message || "Gagal absen");
         setStep("error");

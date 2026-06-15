@@ -7,10 +7,12 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { api } from "@/lib/api";
 import { useRealtime } from "@/lib/realtime";
+import { useToast } from "@/components/ui/Toast";
 import { Check, X } from "lucide-react";
 
 export default function OvertimeAdmin() {
   const qc = useQueryClient();
+  const toast = useToast();
   const { data } = useQuery({
     queryKey: ["admin-overtime"],
     queryFn: () => api.adminOvertime(),
@@ -29,7 +31,14 @@ export default function OvertimeAdmin() {
       id: string;
       status: "approved" | "rejected";
     }) => api.adminOvertimeDecide(id, status),
-    onSuccess: invalidate,
+    onSuccess: (_res, vars) => {
+      invalidate();
+      toast.success(
+        vars.status === "approved" ? "Lembur disetujui" : "Lembur ditolak",
+        "Pegawai mendapat notifikasi keputusan."
+      );
+    },
+    onError: (e: any) => toast.error("Gagal memproses", e.message),
   });
 
   const items = data?.items ?? [];

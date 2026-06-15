@@ -15,6 +15,7 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { api } from "@/lib/api";
 import { calculateDailyOvertimePay, formatHours } from "@/lib/duration";
 import { formatCurrency } from "@/lib/utils";
+import { useToast } from "@/components/ui/Toast";
 import { Plus, Trash2 } from "lucide-react";
 
 export default function OvertimePage() {
@@ -184,6 +185,7 @@ export default function OvertimePage() {
 
 function OvertimeModal({ onClose }: { onClose: () => void }) {
   const qc = useQueryClient();
+  const toast = useToast();
   const [form, setForm] = useState({
     date: new Date().toISOString().slice(0, 10),
     startTime: "17:00",
@@ -197,6 +199,10 @@ function OvertimeModal({ onClose }: { onClose: () => void }) {
     mutationFn: () => api.applyOvertime(form),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["overtime-me"] });
+      toast.success(
+        "Pengajuan lembur terkirim! 🔥",
+        "Menunggu persetujuan atasan. Estimasi pendapatan lembur sudah dihitung."
+      );
       onClose();
     },
     onError: (e: any) => setError(e.message),

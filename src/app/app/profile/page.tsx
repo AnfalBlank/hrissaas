@@ -13,6 +13,7 @@ import { IdCard } from "@/components/employee/IdCard";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { api } from "@/lib/api";
+import { useToast } from "@/components/ui/Toast";
 import { ChevronRight, LogOut } from "lucide-react";
 
 type Action = "edit" | "password" | "idcard" | null;
@@ -258,6 +259,7 @@ function EditProfileModal({
   employee: any;
 }) {
   const qc = useQueryClient();
+  const toast = useToast();
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [form, setForm] = useState({
@@ -301,6 +303,7 @@ function EditProfileModal({
     mutationFn: () => api.updateProfile(form),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["me"] });
+      toast.success("Profil berhasil diperbarui", "Perubahan data tersimpan.");
       onClose();
       setError(null);
     },
@@ -411,6 +414,7 @@ function ChangePasswordModal({
   onClose: () => void;
 }) {
   const [error, setError] = useState<string | null>(null);
+  const toast = useToast();
   const [form, setForm] = useState({
     current: "",
     newPwd: "",
@@ -420,6 +424,7 @@ function ChangePasswordModal({
   const save = useMutation({
     mutationFn: () => api.changePassword(form.current, form.newPwd),
     onSuccess: () => {
+      toast.success("Password berhasil diganti", "Gunakan password baru saat login berikutnya.");
       onClose();
       setForm({ current: "", newPwd: "", confirm: "" });
       setError(null);

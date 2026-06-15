@@ -6,6 +6,8 @@ import { PageHeader } from "@/components/employee/PageHeader";
 import { Icon3D } from "@/components/Icon3D";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { useToast } from "@/components/ui/Toast";
 import { api } from "@/lib/api";
 import { downloadFile } from "@/lib/download";
 import { formatCurrency } from "@/lib/utils";
@@ -21,22 +23,33 @@ export default function PayrollPage() {
     queryFn: () => api.me(),
   });
 
+  const toast = useToast();
   const [downloading, setDownloading] = useState(false);
   const [showEduTax, setShowEduTax] = useState(false);
   const [showEduBpjs, setShowEduBpjs] = useState(false);
+  const [confirmDownload, setConfirmDownload] = useState<string | null | undefined>(undefined);
 
-  async function handleDownload(period?: string) {
+  async function doDownload(period?: string) {
     setDownloading(true);
     try {
       const url = period
         ? `/api/payroll/me/export?period=${period}`
         : "/api/payroll/me/export";
       await downloadFile(url);
+      toast.success(
+        "Slip gaji berhasil diunduh",
+        `Periode ${period ?? "terbaru"} tersimpan di perangkat Anda.`
+      );
     } catch (e: any) {
-      alert(e.message);
+      toast.error("Gagal mengunduh slip", e.message);
     } finally {
       setDownloading(false);
     }
+  }
+
+  function handleDownload(period?: string) {
+    // Buka konfirmasi dulu
+    setConfirmDownload(period ?? null);
   }
 
   function handlePrint(period?: string) {
@@ -273,6 +286,22 @@ export default function PayrollPage() {
           </ul>
         </div>
       )}
+
+      <ConfirmDialog
+        open={confirmDownload !== undefined}
+        onClose={() => setConfirmDownload(undefined)}
+        onConfirm={() => {
+          doDownload(confirmDownload ?? undefined);
+          setConfirmDownload(undefined);
+        }}
+        title="Unduh slip gaji?"
+        description="Slip gaji dalam format PDF akan diunduh ke perangkat Anda. Pastikan data slip sudah benar."
+        confirmLabel="Ya, Unduh"
+        cancelLabel="Batal"
+        variant="primary"
+        icon="payroll"
+        loading={downloading}
+      />
 
       {showEduTax && (
         <EduSheet

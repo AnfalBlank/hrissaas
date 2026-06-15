@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { api } from "@/lib/api";
 import { downloadFile } from "@/lib/download";
 import { useRealtime } from "@/lib/realtime";
+import { useToast } from "@/components/ui/Toast";
 import { Check, FileSpreadsheet, FileText, X } from "lucide-react";
 
 const TYPE_LABEL: Record<string, string> = {
@@ -20,6 +21,7 @@ const TYPE_LABEL: Record<string, string> = {
 
 export default function LeaveAdmin() {
   const qc = useQueryClient();
+  const toast = useToast();
   const { data } = useQuery({
     queryKey: ["admin-leave"],
     queryFn: () => api.adminLeave(),
@@ -38,7 +40,14 @@ export default function LeaveAdmin() {
       id: string;
       status: "approved" | "rejected";
     }) => api.adminLeaveDecide(id, status),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin-leave"] }),
+    onSuccess: (_res, vars) => {
+      qc.invalidateQueries({ queryKey: ["admin-leave"] });
+      toast.success(
+        vars.status === "approved" ? "Cuti disetujui" : "Cuti ditolak",
+        "Pegawai mendapat notifikasi keputusan."
+      );
+    },
+    onError: (e: any) => toast.error("Gagal memproses", e.message),
   });
 
   const [exporting, setExporting] = useState<"" | "pdf" | "xlsx">("");

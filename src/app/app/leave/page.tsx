@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { useToast } from "@/components/ui/Toast";
 import { api } from "@/lib/api";
 import { Plus, Trash2, Upload } from "lucide-react";
 
@@ -180,6 +181,7 @@ export default function LeavePage() {
 
 function LeaveModal({ onClose }: { onClose: () => void }) {
   const qc = useQueryClient();
+  const toast = useToast();
   const [form, setForm] = useState({
     type: "annual" as "annual" | "sick" | "permission" | "emergency",
     fromDate: new Date().toISOString().slice(0, 10),
@@ -192,6 +194,10 @@ function LeaveModal({ onClose }: { onClose: () => void }) {
     mutationFn: () => api.applyLeave(form),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["leave-me"] });
+      toast.success(
+        "Pengajuan cuti terkirim! 📨",
+        "Menunggu persetujuan atasan. Kamu akan dapat notifikasi setelah diputuskan."
+      );
       onClose();
     },
     onError: (e: any) => setError(e.message || "Gagal mengajukan"),
